@@ -66,6 +66,9 @@ class Dataset(torch.utils.data.Dataset):
 
     def _load_raw_image(self, raw_idx): # to be overridden by subclass
         raise NotImplementedError
+    
+    def _load_mask_image(self, raw_idx): # to be overridden by subclass
+        raise NotImplementedError
 
     def _load_raw_labels(self): # to be overridden by subclass
         raise NotImplementedError
@@ -83,14 +86,19 @@ class Dataset(torch.utils.data.Dataset):
         return self._raw_idx.size
 
     def __getitem__(self, idx):
-        image = self._load_raw_image(self._raw_idx[idx])
-        assert isinstance(image, np.ndarray)
-        assert list(image.shape) == self.image_shape
-        assert image.dtype == np.uint8
+        raw_image = self._load_raw_image(self._raw_idx[idx])
+        mask_image = self._load_mask_image(self._raw_idx[idx])
+
+        assert isinstance(raw_image, np.ndarray)
+        assert list(raw_image.shape) == self.image_shape
+        # assert list(mask_image.shape) == self.image_shape
+        assert raw_image.dtype == np.uint8
+        assert mask_image.dtype == np.uint8
         if self._xflip[idx]:
-            assert image.ndim == 3 # CHW
-            image = image[:, :, ::-1]
-        return image.copy(), self.get_label(idx)
+            assert raw_image.ndim == 3 # CHW
+            raw_image = raw_image[:, :, ::-1]
+            mask_image = mask_image[:, :, ::-1]
+        return raw_image.copy(), mask_image.copy(), self.get_label(idx)
 
     def get_label(self, idx):
         label = self._get_raw_labels()[self._raw_idx[idx]]
@@ -154,10 +162,12 @@ class Dataset(torch.utils.data.Dataset):
 class ImageFolderDataset(Dataset):
     def __init__(self,
         path,                   # Path to directory or zip.
+        mask_path,
         resolution      = None, # Ensure specific resolution, None = highest available.
         **super_kwargs,         # Additional arguments for the Dataset base class.
     ):
         self._path = path
+        self._mask_path = mask_path
         self._zipfile = None
 
         if os.path.isdir(self._path):
@@ -190,10 +200,14 @@ class ImageFolderDataset(Dataset):
             self._zipfile = zipfile.ZipFile(self._path)
         return self._zipfile
 
-    def _open_file(self, fname):
+    def _open_file(self, fname, type='img'):
         if self._type == 'dir':
+            if type=='mask':
+                return open(os.path.join(self._mask_path, fname), 'rb')    
             return open(os.path.join(self._path, fname), 'rb')
         if self._type == 'zip':
+            if type=='mask':
+                return self._get_zipfile().open(fname, 'r')    
             return self._get_zipfile().open(fname, 'r')
         return None
 
@@ -209,7 +223,7 @@ class ImageFolderDataset(Dataset):
 
     def _load_raw_image(self, raw_idx):
         fname = self._image_fnames[raw_idx]
-        with self._open_file(fname) as f:
+        with self._open_file(fname, 'img') as f:
             if pyspng is not None and self._file_ext(fname) == '.png':
                 image = pyspng.load(f.read())
             else:
@@ -218,6 +232,18 @@ class ImageFolderDataset(Dataset):
             image = image[:, :, np.newaxis] # HW => HWC
         image = image.transpose(2, 0, 1) # HWC => CHW
         return image
+
+    def _load_mask_image(self, raw_idx):
+        fname = self._image_fnames[raw_idx]
+        with self._open_file(fname, 'mask') as f:
+            if pyspng is not None and self._file_ext(fname) == '.png':
+                image = pyspng.load(f.read())
+            else:
+                image = np.array(PIL.Image.open(f))
+        if image.ndim == 2:
+            image = image[:, :, np.newaxis] # HW => HWC
+        image = image.transpose(2, 0, 1) # HWC => CHW
+        return image    
 
     def _load_raw_labels(self):
         fname = 'dataset.json'
