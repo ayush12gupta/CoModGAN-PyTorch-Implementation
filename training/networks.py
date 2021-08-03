@@ -489,15 +489,15 @@ class SynthesisNetwork(torch.nn.Module):
         for res in range(self.img_resolution_log2, 2, -1):
             #self.block_resolutions[:1:-1]:
             if res == img_resolution:
-                inp_channel = 4 ### Check ### Equal to no. channel of mask + input image
+                inp_channel = 6 ### Check ### Equal to no. channel of mask + input image
                 block = EncoderLayer(inp_channel, res, from_rgb=True)
             else:
-                inp_channel = nf(res-1)
+                inp_channel = nf(res)
                 block = EncoderLayer(inp_channel, res)
             setattr(self, 'E_' + f'b{res}', block)
 
         self.conv4_4 = Conv2dLayer(nf(1), nf(1), kernel_size=3, activation='lrelu')
-        self.dense4_4 = FullyConnectedLayer(4*4*nf(1), nf(1)*2, activation='lrelu')
+        self.dense4_4 = FullyConnectedLayer(4*4*nf(1), nf(1), activation='lrelu')
         if is_training:
             self.dropout = torch.nn.Dropout(0.25)
 
@@ -573,9 +573,9 @@ class Generator(torch.nn.Module):
         self.num_ws = self.synthesis.num_ws
         self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim, num_ws=self.num_ws, **mapping_kwargs)
 
-    def forward(self, z, c, truncation_psi=1, truncation_cutoff=None, **synthesis_kwargs):
+    def forward(self, z, c, image_in, mask_in, truncation_psi=1, truncation_cutoff=None, **synthesis_kwargs):
         ws = self.mapping(z, c, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff)
-        img = self.synthesis(ws, **synthesis_kwargs)
+        img = self.synthesis(image_in, mask_in, ws, **synthesis_kwargs)
         return img
 
 #----------------------------------------------------------------------------
