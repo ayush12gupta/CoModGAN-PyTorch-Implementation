@@ -1,1 +1,1 @@
-python train.py --outdir=./training-runs --data=../comp.zip --mask_data=../mask.zip --gpus=1
+python train.py --outdir="./training-runs" --data="../comp.zip" --mask_data="../mask.zip" --gpus=1
