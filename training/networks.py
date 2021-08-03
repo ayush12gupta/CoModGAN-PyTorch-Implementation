@@ -442,6 +442,7 @@ class EncoderLayer(torch.nn.Module):
         from_rgb       = False,
         **_kwargs
     ):
+        super().__init__()
         def nf(stage): return np.clip(int(fmap_base / (2.0 ** (stage * fmap_decay))), fmap_min, fmap_max)
         # self.act_gain = bias_act.activation_funcs[activation].def_gain
         # self.bias = torch.nn.Parameter(torch.zeros([out_channels]))
@@ -488,7 +489,7 @@ class SynthesisNetwork(torch.nn.Module):
 
         for res in range(self.img_resolution_log2, 2, -1):
             #self.block_resolutions[:1:-1]:
-            if res == img_resolution:
+            if res == self.img_resolution_log2:
                 inp_channel = 6 ### Check ### Equal to no. channel of mask + input image
                 block = EncoderLayer(inp_channel, res, from_rgb=True)
             else:
@@ -532,7 +533,7 @@ class SynthesisNetwork(torch.nn.Module):
         y = torch.cat((mask_in - 0.5, image_in * mask_in), dim = 1)
         for res in range(self.img_resolution_log2, 2, -1):
             block = getattr(self, 'E_' + f'b{res}')
-            if res == self.img_resolution:
+            if res == self.img_resolution_log2:
                 x, E_features = block(x, res, E_features, y=y)
             else:
                 x, E_features = block(x, res, E_features)
