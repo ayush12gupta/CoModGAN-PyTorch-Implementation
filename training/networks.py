@@ -16,7 +16,7 @@ from torch_utils.ops import conv2d_resample
 from torch_utils.ops import upfirdn2d
 from torch_utils.ops import bias_act
 from torch_utils.ops import fma
-from utils import Blur
+# from utils import Blur
 from torch_utils.ops import conv2d_gradfix
 
 #----------------------------------------------------------------------------
@@ -27,11 +27,13 @@ def normalize_2nd_moment(x, dim=1, eps=1e-8):
 
 #----------------------------------------------------------------------------
 
-@misc.profiled_function
+@persistence.persistent_class
 class ModulatedConv2d(nn.Module):
     def __init__(self, style_dim, in_channel):
         super().__init__()
-        self.fc = FullyConnectedLayer(style_dim, in_channel, bias_init=1)
+        self.style_dim = style_dim
+        self.in_channel = in_channel
+        self.fc = FullyConnectedLayer(style_dim, in_channel, bias_init=1, activation='lrelu')
 
     def forward(
         self,
@@ -52,13 +54,14 @@ class ModulatedConv2d(nn.Module):
         misc.assert_shape(weight, [out_channels, in_channels, kh, kw]) # [OIkk]
         misc.assert_shape(x, [batch_size, in_channels, None, None]) # [NIHW]
         # misc.assert_shape(styles, [batch_size, in_channels]) # [NI]
-
+        # print(weight.shape, x.shape, styles.shape, "Modulated", self.style_dim, self.in_channel)
+        styles = self.fc(styles)
+        misc.assert_shape(styles, [batch_size, in_channels]) # [NI]
         # Pre-normalize inputs to avoid FP16 overflow.
         if x.dtype == torch.float16 and demodulate:
             weight = weight * (1 / np.sqrt(in_channels * kh * kw) / weight.norm(float('inf'), dim=[1,2,3], keepdim=True)) # max_Ikk
-            styles = self.fc(styles)
             styles = styles / styles.norm(float('inf'), dim=1, keepdim=True) # max_I
-        misc.assert_shape(styles, [batch_size, in_channels]) # [NI]
+        # misc.assert_shape(styles, [batch_size, in_channels]) # [NI]
 
         # Calculate per-sample weights and demodulation coefficients.
         w = None
@@ -125,6 +128,7 @@ class FullyConnectedLayer(torch.nn.Module):
         if self.activation == 'linear' and b is not None:
             x = torch.addmm(b.unsqueeze(0), x, w.t())
         else:
+            # print(x.size(), w.size(), "sssss")
             x = x.matmul(w.t())
             x = bias_act.bias_act(x, b, act=self.activation)
         return x
@@ -417,7 +421,7 @@ class SynthesisLayer(torch.nn.Module):
         self.affine = FullyConnectedLayer(w_dim, in_channels, bias_init=1)
         memory_format = torch.channels_last if channels_last else torch.contiguous_format
         self.weight = torch.nn.Parameter(torch.randn([out_channels, in_channels, kernel_size, kernel_size]).to(memory_format=memory_format))
-        self.modulated_conv2d = ModulatedConv2d(1024, 512)
+        self.modulated_conv2d = ModulatedConv2d(in_channels+512, in_channels)
         if use_noise:
             self.register_buffer('noise_const', torch.randn([resolution, resolution]))
             self.noise_strength = torch.nn.Parameter(torch.zeros([]))
@@ -459,11 +463,11 @@ class ToRGBLayer(torch.nn.Module):
         self.weight = torch.nn.Parameter(torch.randn([out_channels, in_channels, kernel_size, kernel_size]).to(memory_format=memory_format))
         self.bias = torch.nn.Parameter(torch.zeros([out_channels]))
         self.weight_gain = 1 / np.sqrt(in_channels * (kernel_size ** 2))
-        self.modulated_conv2d = ModulatedConv2d(1024, 512)
+        self.modulated_conv2d = ModulatedConv2d(in_channels+512, in_channels)
 
     def forward(self, x, w, cond_mod=None, fused_modconv=True):
         styles = self.affine(w) * self.weight_gain
-        if cond_mod:
+        if cond_mod is not None:
             styles = torch.cat((styles, cond_mod), axis=1)
         x = self.modulated_conv2d(x=x, weight=self.weight, styles=styles, demodulate=False, fused_modconv=fused_modconv)
         x = bias_act.bias_act(x, self.bias.to(x.dtype), clamp=self.conv_clamp)
@@ -552,6 +556,7 @@ class SynthesisBlock(torch.nn.Module):
         else:
             x = self.conv0(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, **layer_kwargs)
             x = x + x_skip
+            # print(x.size(), x_global.size(), 'syn block')
             x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, **layer_kwargs)
 
         # ToRGB.
@@ -562,6 +567,7 @@ class SynthesisBlock(torch.nn.Module):
             y = self.torgb(x, next(w_iter), cond_mod=x_global, fused_modconv=fused_modconv)
             y = y.to(dtype=torch.float32, memory_format=torch.contiguous_format)
             img = img.add_(y) if img is not None else y
+            x = x.to(dtype=dtype)
 
         assert x.dtype == dtype
         assert img is None or img.dtype == torch.float32
@@ -671,7 +677,8 @@ class SynthesisNetwork(torch.nn.Module):
 
         x = img = None
         # Main Encoder Layers
-        y = torch.cat((mask_in - 0.5, image_in * mask_in), dim = 1)
+        # print(mask_in.size())
+        y = torch.cat((mask_in, image_in * mask_in), dim = 1)
         for res in range(self.img_resolution_log2, 2, -1):
             block = getattr(self, 'E_' + f'b{res}')
             if res == self.img_resolution_log2:
@@ -686,10 +693,11 @@ class SynthesisNetwork(torch.nn.Module):
         if self.dropout:
             x = self.dropout(x)
         x_global = x
-
+        # print(self.block_resolutions)
         for res, cur_ws in zip(self.block_resolutions, block_ws):
+            # print(x.size(), "x inp size for resol:", res)
             block = getattr(self, f'b{res}')
-            x, img = block(x, img, cur_ws, res, E_features, x_global, **block_kwargs)
+            x, img = block(x, img, cur_ws, int(np.log2(res)), E_features, x_global, **block_kwargs)
         return img
 
 #----------------------------------------------------------------------------

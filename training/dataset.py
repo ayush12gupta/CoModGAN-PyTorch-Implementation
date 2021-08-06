@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -86,8 +86,8 @@ class Dataset(torch.utils.data.Dataset):
         return self._raw_idx.size
 
     def __getitem__(self, idx):
-        raw_image = self._load_raw_image(self._raw_idx[idx])
         mask_image = self._load_mask_image(self._raw_idx[idx])
+        raw_image = self._load_raw_image(self._raw_idx[idx])
 
         assert isinstance(raw_image, np.ndarray)
         assert list(raw_image.shape) == self.image_shape
@@ -178,6 +178,7 @@ class ImageFolderDataset(Dataset):
             self._all_fnames = set(self._get_zipfile().namelist())
         else:
             raise IOError('Path must point to a directory or zip')
+        print("tt ", self._all_fnames)
 
         PIL.Image.init()
         self._image_fnames = sorted(fname for fname in self._all_fnames if self._file_ext(fname) in PIL.Image.EXTENSION)
@@ -194,21 +195,25 @@ class ImageFolderDataset(Dataset):
     def _file_ext(fname):
         return os.path.splitext(fname)[1].lower()
 
-    def _get_zipfile(self):
+    def _get_zipfile(self, types='img'):
         assert self._type == 'zip'
         if self._zipfile is None:
-            self._zipfile = zipfile.ZipFile(self._path)
+            if types=='mask':
+                self._zipfile = zipfile.ZipFile(self._mask_path)
+            else: 
+                self._zipfile = zipfile.ZipFile(self._path)
         return self._zipfile
 
-    def _open_file(self, fname, type='img'):
+    def _open_file(self, fname, types='img'):
         if self._type == 'dir':
-            if type=='mask':
+            if types=='mask':
                 return open(os.path.join(self._mask_path, fname), 'rb')    
             return open(os.path.join(self._path, fname), 'rb')
-        if self._type == 'zip':
-            if type=='mask':
-                return self._get_zipfile().open(fname, 'r')    
-            return self._get_zipfile().open(fname, 'r')
+        if self._type == 'zip': 
+            if types=='mask':
+                 return zipfile.ZipFile(self._mask_path).open(fname, 'r')
+            return zipfile.ZipFile(self._path).open(fname, 'r')
+            # return self._get_zipfile(types=types).open(fname, 'r')
         return None
 
     def close(self):
