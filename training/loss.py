@@ -60,6 +60,7 @@ class StyleGAN2Loss(Loss):
         do_Dmain = (phase in ['Dmain', 'Dboth'])
         do_Gpl   = (phase in ['Greg', 'Gboth']) and (self.pl_weight != 0)
         do_Dr1   = (phase in ['Dreg', 'Dboth']) and (self.r1_gamma != 0)
+        l1_weight = 10
 
         # Gmain: Maximize logits for generated images.
         if do_Gmain:
@@ -69,10 +70,11 @@ class StyleGAN2Loss(Loss):
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
                 loss_Gmain = torch.nn.functional.softplus(-gen_logits) # -log(sigmoid(gen_logits))
-                loss_l1 = torch.nn.functional.l1_loss(gen_img, real_img)
-                training_stats.report('Loss/G/loss', loss_Gmain + abs(loss_l1))
+                loss_l1 = abs(torch.nn.functional.l1_loss(gen_img, real_img))*l1_weight
+                training_stats.report('Loss/G/loss', loss_Gmain)
+                training_stats.report('Loss/G/L1loss', loss_l1)
             with torch.autograd.profiler.record_function('Gmain_backward'):
-                (loss_Gmain + abs(loss_l1)).mean().mul(gain).backward()
+                (loss_Gmain + loss_l1).mean().mul(gain).backward()
 
         # Gpl: Apply path length regularization.
         if do_Gpl:
@@ -88,7 +90,8 @@ class StyleGAN2Loss(Loss):
                 pl_penalty = (pl_lengths - pl_mean).square()
                 training_stats.report('Loss/pl_penalty', pl_penalty)
                 loss_Gpl = pl_penalty * self.pl_weight
-                loss_l1 = torch.nn.functional.l1_loss(gen_img, real_img)
+                # print(gen_img.size(), real_img.size())
+                loss_l1 = abs(torch.nn.functional.l1_loss(gen_img, real_img[:batch_size]))*l1_weight
                 training_stats.report('Loss/G/reg', loss_Gpl)
             with torch.autograd.profiler.record_function('Gpl_backward'):
                 (gen_img[:, 0, 0, 0] * 0 + loss_Gpl + loss_l1).mean().mul(gain).backward()

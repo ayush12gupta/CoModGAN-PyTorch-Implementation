@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+﻿# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -225,8 +225,8 @@ def training_loop(
         save_image_grid(images, os.path.join(run_dir, 'reals.png'), drange=[0,255], grid_size=grid_size)
         grid_z = torch.randn([labels.shape[0], G.z_dim], device=device).split(batch_gpu)
         grid_c = torch.from_numpy(labels).to(device).split(batch_gpu)
-        grid_images = torch.from_numpy(images).to(device).split(batch_gpu)
-        grid_mask_images = torch.from_numpy(mask_images).to(device).split(batch_gpu)
+        grid_images = (torch.from_numpy(images).to(torch.float32) / 127.5 - 1).to(device).split(batch_gpu)
+        grid_mask_images = (torch.from_numpy(mask_images).to(torch.float32) / 255.).to(device).split(batch_gpu)
         images = torch.cat([G_ema(z=z, c=c, image_in=images, mask_in=mask_images, noise_mode='const').cpu() for z, c, images, mask_images in zip(grid_z, grid_c, grid_images, grid_mask_images)]).numpy()
         save_image_grid(images, os.path.join(run_dir, 'fakes_init.png'), drange=[-1,1], grid_size=grid_size)
 
@@ -264,7 +264,7 @@ def training_loop(
             phase_real_img, phase_mask, phase_real_c = next(training_set_iterator)
             phase_real_img = (phase_real_img.to(device).to(torch.float32) / 127.5 - 1).split(batch_gpu)
             # phase_image = (phase_image.to(device).to(torch.float32) / 127.5 - 1).split(batch_gpu)
-            phase_masks = (phase_mask.to(device).to(torch.float32) / 127.5 - 1).split(batch_gpu)
+            phase_masks = (phase_mask.to(device).to(torch.float32) / 255.).split(batch_gpu)
             phase_real_c = phase_real_c.to(device).split(batch_gpu)
             all_gen_z = torch.randn([len(phases) * batch_size, G.z_dim], device=device)
             all_gen_z = [phase_gen_z.split(batch_gpu) for phase_gen_z in all_gen_z.split(batch_size)]
@@ -333,6 +333,7 @@ def training_loop(
         fields += [f"time {dnnlib.util.format_time(training_stats.report0('Timing/total_sec', tick_end_time - start_time)):<12s}"]
         fields += [f"sec/tick {training_stats.report0('Timing/sec_per_tick', tick_end_time - tick_start_time):<7.1f}"]
         fields += [f"sec/kimg {training_stats.report0('Timing/sec_per_kimg', (tick_end_time - tick_start_time) / (cur_nimg - tick_start_nimg) * 1e3):<7.2f}"]
+        fields += [f"L1 loss {training_stats.report0('Loss/G/L1loss', cur_tick):<5d}"]
         fields += [f"maintenance {training_stats.report0('Timing/maintenance_sec', maintenance_time):<6.1f}"]
         fields += [f"cpumem {training_stats.report0('Resources/cpu_mem_gb', psutil.Process(os.getpid()).memory_info().rss / 2**30):<6.2f}"]
         fields += [f"gpumem {training_stats.report0('Resources/peak_gpu_mem_gb', torch.cuda.max_memory_allocated(device) / 2**30):<6.2f}"]
