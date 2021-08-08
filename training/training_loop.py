@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -223,12 +223,13 @@ def training_loop(
         print('Exporting sample images...')
         grid_size, images, mask_images, labels = setup_snapshot_image_grid(training_set=training_set)
         save_image_grid(images, os.path.join(run_dir, 'reals.png'), drange=[0,255], grid_size=grid_size)
+        save_image_grid(images*(mask_images/255.), os.path.join(run_dir, 'real_masked_init.png'), drange=[0,255], grid_size=grid_size)
         grid_z = torch.randn([labels.shape[0], G.z_dim], device=device).split(batch_gpu)
         grid_c = torch.from_numpy(labels).to(device).split(batch_gpu)
         grid_images = (torch.from_numpy(images).to(torch.float32) / 127.5 - 1).to(device).split(batch_gpu)
         grid_mask_images = (torch.from_numpy(mask_images).to(torch.float32) / 255.).to(device).split(batch_gpu)
-        images = torch.cat([G_ema(z=z, c=c, image_in=images, mask_in=mask_images, noise_mode='const').cpu() for z, c, images, mask_images in zip(grid_z, grid_c, grid_images, grid_mask_images)]).numpy()
-        save_image_grid(images, os.path.join(run_dir, 'fakes_init.png'), drange=[-1,1], grid_size=grid_size)
+        out_images = torch.cat([G_ema(z=z, c=c, image_in=image, mask_in=mask_image, noise_mode='const').cpu() for z, c, image, mask_image in zip(grid_z, grid_c, grid_images, grid_mask_images)]).numpy()
+        save_image_grid(out_images, os.path.join(run_dir, 'fakes_init.png'), drange=[-1,1], grid_size=grid_size)
 
     # Initialize logs.
     if rank == 0:
@@ -313,7 +314,7 @@ def training_loop(
         # Update state.
         cur_nimg += batch_size
         batch_idx += 1
-        print(cur_nimg, batch_idx, cur_tick)
+        # print(cur_nimg, batch_idx, cur_tick)
         # Execute ADA heuristic.
         if (ada_stats is not None) and (batch_idx % ada_interval == 0):
             ada_stats.update()

@@ -60,7 +60,7 @@ class StyleGAN2Loss(Loss):
         do_Dmain = (phase in ['Dmain', 'Dboth'])
         do_Gpl   = (phase in ['Greg', 'Gboth']) and (self.pl_weight != 0)
         do_Dr1   = (phase in ['Dreg', 'Dboth']) and (self.r1_gamma != 0)
-        l1_weight = 10
+        l1_weight = 100
 
         # Gmain: Maximize logits for generated images.
         if do_Gmain:

@@ -40,6 +40,7 @@ class ModulatedConv2d(nn.Module):
         x,                          # Input tensor of shape [batch_size, in_channels, in_height, in_width].
         weight,                     # Weight tensor of shape [out_channels, in_channels, kernel_height, kernel_width].
         styles,                     # Modulation coefficients of shape [batch_size, in_channels].
+        fc_style        = True,
         noise           = None,     # Optional noise tensor to add to the output activations.
         up              = 1,        # Integer upsampling factor.
         down            = 1,        # Integer downsampling factor.
@@ -55,7 +56,8 @@ class ModulatedConv2d(nn.Module):
         misc.assert_shape(x, [batch_size, in_channels, None, None]) # [NIHW]
         # misc.assert_shape(styles, [batch_size, in_channels]) # [NI]
         # print(weight.shape, x.shape, styles.shape, "Modulated", self.style_dim, self.in_channel)
-        styles = self.fc(styles)
+        if fc_style:
+            styles = self.fc(styles)
         misc.assert_shape(styles, [batch_size, in_channels]) # [NI]
         # Pre-normalize inputs to avoid FP16 overflow.
         if x.dtype == torch.float16 and demodulate:
@@ -441,9 +443,10 @@ class SynthesisLayer(torch.nn.Module):
 
         if cond_mod:
             mod = x_global
+            styles = torch.cat((styles, mod), axis=1)
 
         flip_weight = (self.up == 1) # slightly faster
-        x = self.modulated_conv2d(x=x, weight=self.weight, styles=torch.cat((styles, mod), axis=1), noise=noise, up=self.up,
+        x = self.modulated_conv2d(x=x, weight=self.weight, styles=styles, noise=noise, up=self.up, fc_style = False,
             padding=self.padding, resample_filter=self.resample_filter, flip_weight=flip_weight, fused_modconv=fused_modconv)
 
         act_gain = self.act_gain * gain
@@ -469,7 +472,7 @@ class ToRGBLayer(torch.nn.Module):
         styles = self.affine(w) * self.weight_gain
         if cond_mod is not None:
             styles = torch.cat((styles, cond_mod), axis=1)
-        x = self.modulated_conv2d(x=x, weight=self.weight, styles=styles, demodulate=False, fused_modconv=fused_modconv)
+        x = self.modulated_conv2d(x=x, weight=self.weight, styles=styles, demodulate=False, fused_modconv=fused_modconv, fc_style=False)
         x = bias_act.bias_act(x, self.bias.to(x.dtype), clamp=self.conv_clamp)
         return x
 
@@ -528,6 +531,7 @@ class SynthesisBlock(torch.nn.Module):
 
     def forward(self, x, img, ws, res, E_features, x_global, force_fp32=False, fused_modconv=None, **layer_kwargs):
         misc.assert_shape(ws, [None, self.num_conv + self.num_torgb, self.w_dim])
+        cond = False
         w_iter = iter(ws.unbind(dim=1))
         dtype = torch.float16 if self.use_fp16 and not force_fp32 else torch.float32
         memory_format = torch.channels_last if self.channels_last and not force_fp32 else torch.contiguous_format
@@ -546,25 +550,29 @@ class SynthesisBlock(torch.nn.Module):
         x_skip = E_features[res]
         # Main layers.
         if self.in_channels == 0:
-            x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, **layer_kwargs)
+            x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, **layer_kwargs)
         elif self.architecture == 'resnet':
             y = self.skip(x, gain=np.sqrt(0.5))
-            x = self.conv0(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, **layer_kwargs)
+            x = self.conv0(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, **layer_kwargs)
             x = x + x_skip
-            x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, gain=np.sqrt(0.5), **layer_kwargs)
+            x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, gain=np.sqrt(0.5), **layer_kwargs)
             x = y.add_(x)
         else:
-            x = self.conv0(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, **layer_kwargs)
-            x = x + x_skip
+            x = self.conv0(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, **layer_kwargs)
+            if not self.is_last:
+                x = x + x_skip
             # print(x.size(), x_global.size(), 'syn block')
-            x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, **layer_kwargs)
+            x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, **layer_kwargs)
 
         # ToRGB.
         if img is not None:
             misc.assert_shape(img, [None, self.img_channels, self.resolution // 2, self.resolution // 2])
             img = upfirdn2d.upsample2d(img, self.resample_filter)
         if self.is_last or self.architecture == 'skip':
-            y = self.torgb(x, next(w_iter), cond_mod=x_global, fused_modconv=fused_modconv)
+            if cond:
+                y = self.torgb(x, next(w_iter), cond_mod=x_global, fused_modconv=fused_modconv)
+            else:
+                y = self.torgb(x, next(w_iter), fused_modconv=fused_modconv)
             y = y.to(dtype=torch.float32, memory_format=torch.contiguous_format)
             img = img.add_(y) if img is not None else y
             x = x.to(dtype=dtype)
