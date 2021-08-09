@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+﻿# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -559,8 +559,8 @@ class SynthesisBlock(torch.nn.Module):
             x = y.add_(x)
         else:
             x = self.conv0(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, **layer_kwargs)
-            if not self.is_last:
-                x = x + x_skip
+            # if not self.is_last:
+            x = x + x_skip
             # print(x.size(), x_global.size(), 'syn block')
             x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, **layer_kwargs)
 

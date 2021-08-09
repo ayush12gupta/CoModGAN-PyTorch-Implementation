@@ -120,15 +120,19 @@ def generate_images(
     inps = os.listdir(imgdir)
     seed = seeds[0]
     for i, inp in enumerate(inps):
-        print('Generating image for seed %d (%d/%d) ...' % (seed, len(seeds)))
+        print('Generating image for seed %d (%d) ...' % (seed, len(seeds)))
         z = torch.from_numpy(np.random.RandomState(seed).randn(1, G.z_dim)).to(device)
-        inp_img = np.array(PIL.Image.open(imgdir + inp))
+        inp_img = np.transpose(np.array(PIL.Image.open(imgdir + inp)), (2, 0, 1))
+        print(inp_img.shape)
         inp_img = (torch.from_numpy(inp_img).to(torch.float32) / 127.5 - 1).to(device)
-        inp_mask = np.array(PIL.Image.open(maskdir + inp))
+        inp_img = inp_img.unsqueeze(0)
+        inp_mask = np.transpose(np.array(PIL.Image.open(maskdir + inp)), (2, 0, 1))
+        print(inp_mask.shape)
         inp_mask = (torch.from_numpy(inp_mask).to(torch.float32) / 255.).to(device)
+        inp_mask = inp_mask.unsqueeze(0)
         img = G(z, label, image_in=inp_img, mask_in=inp_mask, truncation_psi=truncation_psi, noise_mode=noise_mode)
         img = (img.permute(0, 2, 3, 1) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
-        PIL.Image.fromarray(img[0].cpu().numpy(), 'RGB').save(f'{outdir}/seed{seed:04d}.png')
+        PIL.Image.fromarray(img[0].cpu().numpy(), 'RGB').save(f'{outdir}/'+ inp)
 
 
 #----------------------------------------------------------------------------
