@@ -487,7 +487,7 @@ class SynthesisBlock(torch.nn.Module):
         resolution,                         # Resolution of this block.
         img_channels,                       # Number of output color channels.
         is_last,                            # Is this the last block?
-        architecture        = 'skip',       # Architecture: 'orig', 'skip', 'resnet'.
+        architecture        = 'resnet',       # Architecture: 'orig', 'skip', 'resnet'.
         resample_filter     = [1,3,3,1],    # Low-pass filter to apply when resampling activations.
         conv_clamp          = None,         # Clamp the output of convolution layers to +-X, None = disable clamping.
         use_fp16            = False,        # Use FP16 for this block?
