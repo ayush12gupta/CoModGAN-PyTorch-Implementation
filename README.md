@@ -187,4 +187,11 @@ References:
   booktitle = {Proc. NeurIPS},
   year      = {2020}
 }
+
+@inproceedings{zhao2021comodgan,
+  title={Large Scale Image Completion via Co-Modulated Generative Adversarial Networks},
+  author={Zhao, Shengyu and Cui, Jonathan and Sheng, Yilun and Dong, Yue and Liang, Xiao and Chang, Eric I and Xu, Yan},
+  booktitle={International Conference on Learning Representations (ICLR)},
+  year={2021}
+}
 ```
