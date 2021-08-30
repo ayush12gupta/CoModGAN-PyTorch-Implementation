@@ -78,7 +78,8 @@ class StyleGAN2Loss(Loss):
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 gen_img, _gen_ws = self.run_G(gen_z, gen_c, real_img, mask, sync=(sync and not do_Gpl)) # May get synced by Gpl.
                 gen_logits = self.run_D(gen_img, gen_c, sync=False)
-                gen_logits_inner = self.run_D2(gen_img, gen_c, sync=False)
+                # gen_logits_inner = self.run_D2(gen_img, gen_c, sync=False)
+                gen_logits_inner = self.run_D2(gen_img)
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
                 loss_Gmain = torch.nn.functional.softplus(-gen_logits) # -log(sigmoid(gen_logits))
@@ -126,7 +127,8 @@ class StyleGAN2Loss(Loss):
         if do_Dmain_inner:
             with torch.autograd.profiler.record_function('D2gen_forward'):
                 gen_img, _gen_ws = self.run_G(gen_z, gen_c, real_img, mask, sync=False)
-                gen_logits_inner = self.run_D2(gen_img, gen_c, sync=False) # Gets synced by loss_Dreal.
+                # gen_logits_inner = self.run_D2(gen_img, gen_c, sync=False) # Gets synced by loss_Dreal.
+                gen_logits_inner = self.run_D2(gen_img)
                 training_stats.report('Loss/scores/fake_inner', gen_logits_inner)
                 training_stats.report('Loss/signs/fake_inner', gen_logits_inner.sign())
                 # loss_Dgen = torch.nn.functional.softplus(gen_logits) # -log(1 - sigmoid(gen_logits))
@@ -167,7 +169,8 @@ class StyleGAN2Loss(Loss):
             name = 'Dreal_D2r1' if do_Dmain_inner and do_D2r1 else 'D2real' if do_Dmain_inner else 'D2r1'
             with torch.autograd.profiler.record_function(name + '_forward'):
                 real_img_tmp = real_img.detach().requires_grad_(do_D2r1)
-                real_logits_inner = self.run_D2(real_img_tmp, real_c, sync=sync)
+                # real_logits_inner = self.run_D2(real_img_tmp, real_c, sync=sync)
+                real_logits_inner = self.run_D2(real_img_tmp)
                 training_stats.report('Loss/scores/real_inner', real_logits_inner)
                 training_stats.report('Loss/signs/real_inner', real_logits_inner.sign())
 
