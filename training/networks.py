@@ -972,61 +972,97 @@ class Discriminator(torch.nn.Module):
 
 #----------------------------------------------------------------------------
 
+# @persistence.persistent_class
+# class LocalDiscriminator(torch.nn.Module):
+#     def __init__(self,
+#         c_dim,                          # Conditioning label (C) dimensionality.
+#         img_channels,                   # Number of input color channels.
+#         img_resolution,
+#         architecture        = 'resnet', # Architecture: 'orig', 'skip', 'resnet'.
+#         channel_base        = 32768,    # Overall multiplier for the number of channels.
+#         channel_max         = 512,      # Maximum number of channels in any layer.
+#         num_fp16_res        = 0,        # Use FP16 for the N highest resolutions.
+#         conv_clamp          = None,     # Clamp the output of convolution layers to +-X, None = disable clamping.
+#         cmap_dim            = None,     # Dimensionality of mapped conditioning label, None = default.
+#         block_kwargs        = {},       # Arguments for DiscriminatorBlock.
+#         mapping_kwargs      = {},       # Arguments for MappingNetwork.
+#         epilogue_kwargs     = {},       # Arguments for DiscriminatorEpilogue.
+#     ):
+#         super().__init__()
+#         self.c_dim = c_dim
+#         img_resolution = 256
+#         self.img_resolution = img_resolution 
+#         self.img_resolution_log2 = int(np.log2(img_resolution))
+#         self.img_channels = img_channels
+#         self.block_resolutions = [2 ** i for i in range(self.img_resolution_log2, 2, -1)]
+#         channels_dict = {res: min(channel_base // res, channel_max) for res in self.block_resolutions + [4]}
+#         fp16_resolution = max(2 ** (self.img_resolution_log2 + 1 - num_fp16_res), 8)
+
+#         if cmap_dim is None:
+#             cmap_dim = channels_dict[4]
+#         if c_dim == 0:
+#             cmap_dim = 0
+
+#         common_kwargs = dict(img_channels=img_channels, architecture=architecture, conv_clamp=conv_clamp)
+#         cur_layer_idx = 0
+#         for res in self.block_resolutions:
+#             in_channels = channels_dict[res] if res < img_resolution else 0
+#             tmp_channels = channels_dict[res]
+#             out_channels = channels_dict[res // 2]
+#             use_fp16 = (res >= fp16_resolution)
+#             block = DiscriminatorBlock(in_channels, tmp_channels, out_channels, resolution=res,
+#                 first_layer_idx=cur_layer_idx, use_fp16=use_fp16, **block_kwargs, **common_kwargs)
+#             setattr(self, f'b{res}', block)
+#             cur_layer_idx += block.num_layers
+#         if c_dim > 0:
+#             self.mapping = MappingNetwork(z_dim=0, c_dim=c_dim, w_dim=cmap_dim, num_ws=None, w_avg_beta=None, **mapping_kwargs)
+#         self.b4 = DiscriminatorEpilogue(channels_dict[4], cmap_dim=cmap_dim, resolution=4, **epilogue_kwargs, **common_kwargs)
+
+#     def forward(self, img, c, **block_kwargs):
+#         x = None
+#         for res in self.block_resolutions:
+#             block = getattr(self, f'b{res}')
+#             x, img = block(x, img, **block_kwargs)
+
+#         cmap = None
+#         if self.c_dim > 0:
+#             cmap = self.mapping(None, c)
+#         x = self.b4(x, img, cmap)
+#         return x
+
+#----------------------------------------------------------------------------
+
 @persistence.persistent_class
 class LocalDiscriminator(torch.nn.Module):
-    def __init__(self,
-        c_dim,                          # Conditioning label (C) dimensionality.
+    def __init__(self, 
         img_channels,                   # Number of input color channels.
-        architecture        = 'resnet', # Architecture: 'orig', 'skip', 'resnet'.
-        channel_base        = 32768,    # Overall multiplier for the number of channels.
-        channel_max         = 512,      # Maximum number of channels in any layer.
-        num_fp16_res        = 0,        # Use FP16 for the N highest resolutions.
-        conv_clamp          = None,     # Clamp the output of convolution layers to +-X, None = disable clamping.
-        cmap_dim            = None,     # Dimensionality of mapped conditioning label, None = default.
+        img_resolution,
         block_kwargs        = {},       # Arguments for DiscriminatorBlock.
         mapping_kwargs      = {},       # Arguments for MappingNetwork.
         epilogue_kwargs     = {},       # Arguments for DiscriminatorEpilogue.
     ):
         super().__init__()
-        self.c_dim = c_dim
-        img_resolution = 256
-        self.img_resolution = img_resolution 
-        self.img_resolution_log2 = int(np.log2(img_resolution))
-        self.img_channels = img_channels
-        self.block_resolutions = [2 ** i for i in range(self.img_resolution_log2, 2, -1)]
-        channels_dict = {res: min(channel_base // res, channel_max) for res in self.block_resolutions + [4]}
-        fp16_resolution = max(2 ** (self.img_resolution_log2 + 1 - num_fp16_res), 8)
 
-        if cmap_dim is None:
-            cmap_dim = channels_dict[4]
-        if c_dim == 0:
-            cmap_dim = 0
+        def discriminator_block(in_filters, out_filters, normalization=True):
+            """Returns downsampling layers of each discriminator block"""
+            layers = [nn.Conv2d(in_filters, out_filters, 4, stride=2, padding=1)]
+            if normalization:
+                layers.append(nn.InstanceNorm2d(out_filters))
+            layers.append(nn.LeakyReLU(0.2, inplace=True))
+            return layers
 
-        common_kwargs = dict(img_channels=img_channels, architecture=architecture, conv_clamp=conv_clamp)
-        cur_layer_idx = 0
-        for res in self.block_resolutions:
-            in_channels = channels_dict[res] if res < img_resolution else 0
-            tmp_channels = channels_dict[res]
-            out_channels = channels_dict[res // 2]
-            use_fp16 = (res >= fp16_resolution)
-            block = DiscriminatorBlock(in_channels, tmp_channels, out_channels, resolution=res,
-                first_layer_idx=cur_layer_idx, use_fp16=use_fp16, **block_kwargs, **common_kwargs)
-            setattr(self, f'b{res}', block)
-            cur_layer_idx += block.num_layers
-        if c_dim > 0:
-            self.mapping = MappingNetwork(z_dim=0, c_dim=c_dim, w_dim=cmap_dim, num_ws=None, w_avg_beta=None, **mapping_kwargs)
-        self.b4 = DiscriminatorEpilogue(channels_dict[4], cmap_dim=cmap_dim, resolution=4, **epilogue_kwargs, **common_kwargs)
+        self.model = nn.Sequential(
+            *discriminator_block(img_channels, 64, normalization=False),
+            *discriminator_block(64, 128),
+            *discriminator_block(128, 256),
+            *discriminator_block(256, 512),
+            nn.ZeroPad2d((1, 0, 1, 0)),
+            nn.Conv2d(512, 1, 4, padding=1, bias=False)
+        )
 
-    def forward(self, img, c, **block_kwargs):
-        x = None
-        for res in self.block_resolutions:
-            block = getattr(self, f'b{res}')
-            x, img = block(x, img, **block_kwargs)
-
-        cmap = None
-        if self.c_dim > 0:
-            cmap = self.mapping(None, c)
-        x = self.b4(x, img, cmap)
-        return x
+    def forward(self, img):
+        # Concatenate image and condition image by channels to produce input
+        # img_input = torch.cat((img_A, img_B), 1)
+        return self.model(img)
 
 #----------------------------------------------------------------------------

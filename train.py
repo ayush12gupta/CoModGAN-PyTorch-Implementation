@@ -178,13 +178,15 @@ def setup_training_loop_kwargs(
 
     args.G_kwargs = dnnlib.EasyDict(class_name='training.networks.Generator', z_dim=512, w_dim=512, mapping_kwargs=dnnlib.EasyDict(), synthesis_kwargs=dnnlib.EasyDict())
     args.D_kwargs = dnnlib.EasyDict(class_name='training.networks.Discriminator', block_kwargs=dnnlib.EasyDict(), mapping_kwargs=dnnlib.EasyDict(), epilogue_kwargs=dnnlib.EasyDict())
-    args.D2_kwargs = dnnlib.EasyDict(class_name='training.networks.LocalDiscriminator', block_kwargs=dnnlib.EasyDict(), mapping_kwargs=dnnlib.EasyDict(), epilogue_kwargs=dnnlib.EasyDict())
+    # args.D2_kwargs = dnnlib.EasyDict(class_name='training.networks.LocalDiscriminator', block_kwargs=dnnlib.EasyDict(), mapping_kwargs=dnnlib.EasyDict(), epilogue_kwargs=dnnlib.EasyDict())
+    args.D2_kwargs = dnnlib.EasyDict(class_name='training.networks.LocalDiscriminator')
     args.G_kwargs.synthesis_kwargs.channel_base = args.D_kwargs.channel_base = int(spec.fmaps * 32768)
     args.G_kwargs.synthesis_kwargs.channel_max = args.D_kwargs.channel_max = 512
     args.G_kwargs.mapping_kwargs.num_layers = spec.map
     args.G_kwargs.synthesis_kwargs.num_fp16_res = args.D_kwargs.num_fp16_res = 4 # enable mixed-precision training
     args.G_kwargs.synthesis_kwargs.conv_clamp = args.D_kwargs.conv_clamp = 256 # clamp activations to avoid float16 overflow
     args.D_kwargs.epilogue_kwargs.mbstd_group_size = spec.mbstd
+    # args.D2_kwargs.epilogue_kwargs.mbstd_group_size = spec.mbstd
 
     args.G_opt_kwargs = dnnlib.EasyDict(class_name='torch.optim.Adam', lr=spec.lrate, betas=[0,0.99], eps=1e-8)
     args.D_opt_kwargs = dnnlib.EasyDict(class_name='torch.optim.Adam', lr=spec.lrate, betas=[0,0.99], eps=1e-8)
