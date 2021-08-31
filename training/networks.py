@@ -1058,7 +1058,9 @@ class LocalDiscriminator(torch.nn.Module):
             *discriminator_block(128, 256),
             *discriminator_block(256, 512),
             nn.ZeroPad2d((1, 0, 1, 0)),
-            nn.Conv2d(512, 1, 4, padding=1, bias=False)
+            nn.Conv2d(512, 1, 4, padding=1, bias=False),
+            nn.Flatten(),
+            nn.Linear(256, 1)
         )
 
     def forward(self, img):

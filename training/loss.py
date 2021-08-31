@@ -55,12 +55,12 @@ class StyleGAN2Loss(Loss):
             logits = self.D(img, c)
         return logits
 
-    def run_D2(self, img, c, sync):
+    def run_D2(self, img):
         if self.augment_pipe is not None:
             img = self.augment_pipe(img)
-        with misc.ddp_sync(self.D, sync):
+        # with misc.ddp_sync(self.D, sync):
             inner = img[:,:,128:-128, 128:-128]
-            logits_inner = self.D2(inner, c)
+            logits_inner = self.D2(inner)
         return logits_inner
 
     def accumulate_gradients(self, phase, real_img, real_c, mask, gen_z, gen_c, sync, gain):
