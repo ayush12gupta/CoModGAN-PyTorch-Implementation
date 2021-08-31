@@ -556,14 +556,14 @@ class SynthesisBlock(torch.nn.Module):
         elif self.architecture == 'resnet':
             y = self.skip(x, gain=np.sqrt(0.5))
             x = self.conv0(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, **layer_kwargs)
-            if x_skip:
+            if x_skip is not None:
                 x = x + x_skip
             x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, gain=np.sqrt(0.5), **layer_kwargs)
             x = y.add_(x)
         else:
             x = self.conv0(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, **layer_kwargs)
             # if not self.is_last:
-            if x_skip:
+            if x_skip is not None:
                 x = x + x_skip
             # print(x.size(), x_global.size(), 'syn block')
             x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, **layer_kwargs)
@@ -1035,6 +1035,7 @@ class Discriminator(torch.nn.Module):
 @persistence.persistent_class
 class LocalDiscriminator(torch.nn.Module):
     def __init__(self, 
+        c_dim,
         img_channels,                   # Number of input color channels.
         img_resolution,
         block_kwargs        = {},       # Arguments for DiscriminatorBlock.
