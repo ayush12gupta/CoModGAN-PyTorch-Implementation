@@ -548,7 +548,7 @@ class SynthesisBlock(torch.nn.Module):
             x = x.to(dtype=dtype, memory_format=memory_format)
 
         x_skip = None
-        if res<=6:  ## HARD CODED
+        if res<=12:  ## HARD CODED
             x_skip = E_features[res]
         # Main layers.
         if self.in_channels == 0:
@@ -649,7 +649,7 @@ class SynthesisNetwork(torch.nn.Module):
         for res in range(self.img_resolution_log2, 2, -1):
             #self.block_resolutions[:1:-1]:
             if res == self.img_resolution_log2:
-                inp_channel = 6 ### Check ### Equal to no. channel of mask + input image !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                inp_channel = 3 ### Check ### Equal to no. channel of mask + input image !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                 block = EncoderLayer(inp_channel, res, from_rgb=True)
             else:
                 inp_channel = nf(res)
@@ -692,8 +692,8 @@ class SynthesisNetwork(torch.nn.Module):
         # print(torch.max(mask_in), torch.min(mask_in), torch.max(image_in), torch.min(image_in))
         # y = torch.cat((mask_in-0.5, image_in * mask_in), dim = 1)
         y = image_in*mask_in
-        y_m = torch.flip(y, [3])
-        y = torch.cat((y, y_m), dim=1)
+        # y_m = torch.flip(y, [3])
+        # y = torch.cat((y, y_m), dim=1)
         for res in range(self.img_resolution_log2, 2, -1):
             block = getattr(self, 'E_' + f'b{res}')
             if res == self.img_resolution_log2:
