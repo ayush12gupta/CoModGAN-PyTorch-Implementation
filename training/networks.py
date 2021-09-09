@@ -1,4 +1,4 @@
-﻿# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -58,6 +58,7 @@ class ModulatedConv2d(nn.Module):
         # print(weight.shape, x.shape, styles.shape, "Modulated", self.style_dim, self.in_channel)
         if fc_style:
             styles = self.fc(styles)
+        # print(weight.shape, x.shape, styles.shape, "Modulated", self.style_dim, self.in_channel)
         misc.assert_shape(styles, [batch_size, in_channels]) # [NI]
         # Pre-normalize inputs to avoid FP16 overflow.
         if x.dtype == torch.float16 and demodulate:
@@ -419,7 +420,7 @@ class SynthesisLayer(torch.nn.Module):
         self.register_buffer('resample_filter', upfirdn2d.setup_filter(resample_filter))
         self.padding = kernel_size // 2
         self.act_gain = bias_act.activation_funcs[activation].def_gain
-
+        self.kernel_size = kernel_size
         self.affine = FullyConnectedLayer(w_dim, in_channels, bias_init=1)
         memory_format = torch.channels_last if channels_last else torch.contiguous_format
         self.weight = torch.nn.Parameter(torch.randn([out_channels, in_channels, kernel_size, kernel_size]).to(memory_format=memory_format))
@@ -441,12 +442,18 @@ class SynthesisLayer(torch.nn.Module):
         if self.use_noise and noise_mode == 'const':
             noise = self.noise_const * self.noise_strength
 
+        fc_style = cond_mod
+        # print(self.kernel_size)
+        # if self.kernel_size==1:
+        #     fc_style = False
+        #     cond_mod = False
+
         if cond_mod:
             mod = x_global
             styles = torch.cat((styles, mod), axis=1)
 
         flip_weight = (self.up == 1) # slightly faster
-        x = self.modulated_conv2d(x=x, weight=self.weight, styles=styles, noise=noise, up=self.up, fc_style = False,
+        x = self.modulated_conv2d(x=x, weight=self.weight, styles=styles, noise=noise, up=self.up, fc_style = fc_style,
             padding=self.padding, resample_filter=self.resample_filter, flip_weight=flip_weight, fused_modconv=fused_modconv)
 
         act_gain = self.act_gain * gain
@@ -472,7 +479,7 @@ class ToRGBLayer(torch.nn.Module):
         styles = self.affine(w) * self.weight_gain
         if cond_mod is not None:
             styles = torch.cat((styles, cond_mod), axis=1)
-        x = self.modulated_conv2d(x=x, weight=self.weight, styles=styles, demodulate=False, fused_modconv=fused_modconv, fc_style=False)
+        x = self.modulated_conv2d(x=x, weight=self.weight, styles=styles, demodulate=False, fused_modconv=fused_modconv, fc_style=cond_mod is not None)
         x = bias_act.bias_act(x, self.bias.to(x.dtype), clamp=self.conv_clamp)
         return x
 
@@ -531,7 +538,7 @@ class SynthesisBlock(torch.nn.Module):
 
     def forward(self, x, img, ws, res, E_features, x_global, force_fp32=False, fused_modconv=None, **layer_kwargs):
         misc.assert_shape(ws, [None, self.num_conv + self.num_torgb, self.w_dim])
-        cond = False
+        cond = True
         w_iter = iter(ws.unbind(dim=1))
         dtype = torch.float16 if self.use_fp16 and not force_fp32 else torch.float32
         memory_format = torch.channels_last if self.channels_last and not force_fp32 else torch.contiguous_format
