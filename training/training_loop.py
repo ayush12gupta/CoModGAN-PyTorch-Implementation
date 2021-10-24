@@ -118,6 +118,7 @@ def training_loop(
     allow_tf32              = False,    # Enable torch.backends.cuda.matmul.allow_tf32 and torch.backends.cudnn.allow_tf32?
     abort_fn                = None,     # Callback function for determining whether to abort training. Must return consistent results across ranks.
     progress_fn             = None,     # Callback function for updating training progress. Called for all ranks.
+    use_localD              = False,
 ):
     # Initialize.
     start_time = time.time()
@@ -149,6 +150,8 @@ def training_loop(
     common_kwargs = dict(c_dim=training_set.label_dim, img_resolution=training_set.resolution, img_channels=training_set.num_channels)
     G = dnnlib.util.construct_class_by_name(**G_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
     D = dnnlib.util.construct_class_by_name(**D_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
+    if use_localD:
+        D2 = dnnlib.util.construct_class_by_name(**D2_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
     G_ema = copy.deepcopy(G).eval()
 
     # Resume from existing pickle.
@@ -190,6 +193,15 @@ def training_loop(
             module.requires_grad_(False)
         if name is not None:
             ddp_modules[name] = module
+    
+    if use_localD:
+        for name, module in [('D2', D2)]:
+            if (num_gpus > 1) and (module is not None) and len(list(module.parameters())) != 0:
+                module.requires_grad_(True)
+                module = torch.nn.parallel.DistributedDataParallel(module, device_ids=[device], broadcast_buffers=False)
+                module.requires_grad_(False)
+            if name is not None:
+                ddp_modules[name] = module
 
     # Setup training phases.
     if rank == 0:
