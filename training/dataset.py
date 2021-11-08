@@ -14,7 +14,7 @@ import json
 import torch
 import dnnlib
 import random
-
+from .masks import get_mask_generator
 try:
     import pyspng
 except ImportError:
@@ -30,6 +30,8 @@ class Dataset(torch.utils.data.Dataset):
         use_labels  = False,    # Enable conditioning labels? False = label dimension is zero.
         xflip       = False,    # Artificially double the size of the dataset via x-flips. Applied after max_size.
         random_seed = 0,        # Random seed to use when applying max_size.
+        mask_generator_kind="mixed",
+        mask_gen_kwargs = None,
     ):
         self._name = name
         self._raw_shape = list(raw_shape)
@@ -37,6 +39,7 @@ class Dataset(torch.utils.data.Dataset):
         self._raw_labels = None
         self._label_shape = None
 
+        self.mask_generator = get_mask_generator(kind=mask_generator_kind, kwargs=mask_gen_kwargs)
         # Apply max_size.
         self._raw_idx = np.arange(self._raw_shape[0], dtype=np.int64)
         if (max_size is not None) and (self._raw_idx.size > max_size):
@@ -90,6 +93,7 @@ class Dataset(torch.utils.data.Dataset):
         mask_idx = random.randint(0, len(self._raw_idx)-1)
         mask_image = self._load_mask_image(self._raw_idx[mask_idx])
         raw_image = self._load_raw_image(self._raw_idx[idx])
+        mask_image = self.mask_generator(raw_image, iter_i=self.iter_i)
 
         assert isinstance(raw_image, np.ndarray)
         assert list(raw_image.shape) == self.image_shape
