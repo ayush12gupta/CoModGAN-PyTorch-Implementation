@@ -45,7 +45,7 @@ class Dataset(torch.utils.data.Dataset):
         if (max_size is not None) and (self._raw_idx.size > max_size):
             np.random.RandomState(random_seed).shuffle(self._raw_idx)
             self._raw_idx = np.sort(self._raw_idx[:max_size])
-
+        self.iter_i = 0
         # Apply xflip.
         self._xflip = np.zeros(self._raw_idx.size, dtype=np.uint8)
         if xflip:
@@ -93,8 +93,8 @@ class Dataset(torch.utils.data.Dataset):
         mask_idx = random.randint(0, len(self._raw_idx)-1)
         mask_image = self._load_mask_image(self._raw_idx[mask_idx])
         raw_image = self._load_raw_image(self._raw_idx[idx])
-        mask_image = self.mask_generator(raw_image, iter_i=self.iter_i)
-
+        mask_image = self.mask_generator(raw_image, iter_i=self.iter_i)*255.
+        mask_image = np.uint8(mask_image)
         assert isinstance(raw_image, np.ndarray)
         assert list(raw_image.shape) == self.image_shape
         # assert list(mask_image.shape) == self.image_shape
@@ -104,6 +104,7 @@ class Dataset(torch.utils.data.Dataset):
             assert raw_image.ndim == 3 # CHW
             raw_image = raw_image[:, :, ::-1]
             mask_image = mask_image[:, :, ::-1]
+        self.iter_i += 1
         return raw_image.copy(), mask_image.copy(), self.get_label(idx)
 
     def get_label(self, idx):
