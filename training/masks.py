@@ -7,7 +7,7 @@ from enum import Enum
 import cv2
 import numpy as np
 
-from seg_mask import SegmentationMask
+from .seg_mask import SegmentationMask
 # from saicinpainting.utils import LinearRamp
 
 LOGGER = logging.getLogger(__name__)
