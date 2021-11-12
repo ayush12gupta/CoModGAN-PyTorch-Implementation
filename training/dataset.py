@@ -91,7 +91,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         mask_idx = random.randint(0, len(self._raw_idx)-1)
-        mask_image = self._load_mask_image(self._raw_idx[mask_idx])
+        #mask_image = self._load_mask_image(self._raw_idx[mask_idx])
         raw_image = self._load_raw_image(self._raw_idx[idx])
         mask_image = self.mask_generator(raw_image, iter_i=self.iter_i)*255.
         mask_image = np.uint8(mask_image)
