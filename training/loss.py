@@ -107,13 +107,13 @@ class StyleGAN2Loss(Loss):
         do_Gpl   = (phase in ['Greg', 'Gboth']) and (self.pl_weight != 0)
         do_Dr1   = (phase in ['Dreg', 'Dboth']) and (self.r1_gamma != 0)
         
-        l1_weight = 50
+        l1_weight = 70
         loss_l1 = loss_vgg = loss_Dgen = loss_Gmain = loss_Dreal = None
         if do_imageq:
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 gen_img, _gen_ws = self.run_G(gen_z, gen_c, real_img, mask, sync=(sync and not do_Gpl)) # May get synced by Gpl.
                 gen_logits = self.run_D(gen_img, gen_c, sync=False)
-                loss_vgg = self.vgg_loss(gen_img, real_img)*3
+                loss_vgg = self.vgg_loss(gen_img, real_img)*5
                 # training_stats.report('Loss/scores/fake', gen_logits)
                 # training_stats.report('Loss/signs/fake', gen_logits.sign())
                 loss_l1 = abs(torch.nn.functional.l1_loss(gen_img, real_img))*l1_weight

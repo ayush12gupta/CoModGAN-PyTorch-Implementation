@@ -327,6 +327,16 @@ def training_loop(
             adjust = np.sign(ada_stats['Loss/signs/real'] - ada_target) * (batch_size * ada_interval) / (ada_kimg * 1000)
             augment_pipe.p.copy_((augment_pipe.p + adjust).max(misc.constant(0, device=device)))
 
+        if cur_nimg%1e3==0:
+            l1_Loss /= 1e3
+            vggLoss /= 1e3
+            drealLoss /= 1e3
+            gmainLoss /= 1e3
+            dgenLoss /= 1e3
+            log = "king: {cur_nimg}  L1 loss: {l1}  Perceptual loss: {vgg}  G_main: {gmain}  D_gen: {dgen}  D_real: {dreal}".format(cur_nimg=cur_nimg/1e3, l1=l1_Loss, vgg=vggLoss, gmain=gmainLoss, dgen=dgenLoss, dreal=drealLoss)
+            print(log)
+            l1_Loss, vggLoss, drealLoss, gmainLoss, dgenLoss = 0, 0, 0, 0, 0
+
         # Perform maintenance tasks once per tick.
         done = (cur_nimg >= total_kimg * 1000)
         if (not done) and (cur_tick != 0) and (cur_nimg < tick_start_nimg + kimg_per_tick * 1000):
@@ -380,15 +390,6 @@ def training_loop(
                 with open(snapshot_pkl, 'wb') as f:
                     pickle.dump(snapshot_data, f)
 
-        if cur_nimg%1e3==0:
-            l1_Loss /= 1e3
-            vggLoss /= 1e3
-            drealLoss /= 1e3
-            gmainLoss /= 1e3
-            dgenLoss /= 1e3
-            log = "king: {cur_nimg}  L1 loss: {l1}  Perceptual loss: {vgg}  G_main: {gmain}  D_gen: {dgen}  D_real: {dreal}".format(cur_nimg=cur_nimg/1e3, l1=l1_Loss, vgg=vggLoss, gmain=gmainLoss, dgen=dgenLoss, dreal=drealLoss)
-            print(log)
-            l1_Loss, vggLoss, drealLoss, gmainLoss, dgenLoss = 0, 0, 0, 0, 0
 
         # Evaluate metrics.
         # if (snapshot_data is not None) and (len(metrics) > 0):
