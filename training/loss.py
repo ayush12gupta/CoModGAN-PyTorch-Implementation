@@ -18,18 +18,18 @@ class VGGPerceptualLoss(torch.nn.Module):
     def __init__(self, resize=True):
         super(VGGPerceptualLoss, self).__init__()
         blocks = []
-        blocks.append(torchvision.models.vgg16(pretrained=True).features[:4].eval())
-        blocks.append(torchvision.models.vgg16(pretrained=True).features[4:9].eval())
-        blocks.append(torchvision.models.vgg16(pretrained=True).features[9:16].eval())
-        blocks.append(torchvision.models.vgg16(pretrained=True).features[16:23].eval())
+        blocks.append(torchvision.models.vgg16(pretrained=True).cuda().features[:4].eval())
+        blocks.append(torchvision.models.vgg16(pretrained=True).cuda().features[4:9].eval())
+        blocks.append(torchvision.models.vgg16(pretrained=True).cuda().features[9:16].eval())
+        blocks.append(torchvision.models.vgg16(pretrained=True).cuda().features[16:23].eval())
         for bl in blocks:
             for p in bl.parameters():
                 p.requires_grad = False
         self.blocks = torch.nn.ModuleList(blocks)
         self.transform = torch.nn.functional.interpolate
         self.resize = resize
-        self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1))
-        self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1))
+        self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).cuda().view(1, 3, 1, 1))
+        self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).cuda().view(1, 3, 1, 1))
 
     def forward(self, input, target, feature_layers=[0, 1, 2, 3], style_layers=[]):
         if input.shape[1] != 3:
@@ -108,19 +108,19 @@ class StyleGAN2Loss(Loss):
         do_Dr1   = (phase in ['Dreg', 'Dboth']) and (self.r1_gamma != 0)
         
         l1_weight = 50
-
+        loss_l1 = loss_vgg = loss_Dgen = loss_Gmain = loss_Dreal = None
         if do_imageq:
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 gen_img, _gen_ws = self.run_G(gen_z, gen_c, real_img, mask, sync=(sync and not do_Gpl)) # May get synced by Gpl.
                 gen_logits = self.run_D(gen_img, gen_c, sync=False)
-                loss_vgg = self.vgg_loss(gen_img, real_img)*5
+                loss_vgg = self.vgg_loss(gen_img, real_img)*3
                 # training_stats.report('Loss/scores/fake', gen_logits)
                 # training_stats.report('Loss/signs/fake', gen_logits.sign())
                 loss_l1 = abs(torch.nn.functional.l1_loss(gen_img, real_img))*l1_weight
                 training_stats.report('Loss/G/L1_loss', loss_l1)
                 training_stats.report('Loss/G/Perceptual', loss_vgg)
             with torch.autograd.profiler.record_function('Gmain_backward'):
-                (loss_vgg + loss_l1).mean().mul(gain).backward()
+                (loss_l1+loss_vgg).mean().mul(gain).backward()
 
         # Gmain: Maximize logits for generated images.
         if do_Gmain:
@@ -157,8 +157,8 @@ class StyleGAN2Loss(Loss):
                 (gen_img[:, 0, 0, 0] * 0 + loss_Gpl).mean().mul(gain).backward()
 
         # Dmain: Minimize logits for generated images.
-        loss_Dgen = 0
         if do_Dmain:
+            loss_Dgen = 0
             with torch.autograd.profiler.record_function('Dgen_forward'):
                 gen_img, _gen_ws = self.run_G(gen_z, gen_c, real_img, mask, sync=False)
                 gen_logits = self.run_D(gen_img, gen_c, sync=False) # Gets synced by loss_Dreal.
@@ -178,11 +178,12 @@ class StyleGAN2Loss(Loss):
                 training_stats.report('Loss/scores/real', real_logits)
                 training_stats.report('Loss/signs/real', real_logits.sign())
 
-                loss_Dreal = 0
+                
                 if do_Dmain:
+                    loss_Dreal = 0
                     loss_Dreal = torch.nn.functional.softplus(-real_logits) # -log(sigmoid(real_logits))
                     training_stats.report('Loss/D/loss', loss_Dgen + loss_Dreal)
-
+ 
                 loss_Dr1 = 0
                 if do_Dr1:
                     with torch.autograd.profiler.record_function('r1_grads'), conv2d_gradfix.no_weight_gradients():
@@ -193,8 +194,29 @@ class StyleGAN2Loss(Loss):
                     training_stats.report('Loss/D/reg', loss_Dr1)
 
             with torch.autograd.profiler.record_function(name + '_backward'):
-                (real_logits * 0 + loss_Dreal + loss_Dr1).mean().mul(gain).backward()
+                if do_Dmain and do_Dr1:
+                    (real_logits * 0 + loss_Dreal + loss_Dr1).mean().mul(gain).backward()
+                elif do_Dr1:
+                    (real_logits * 0 + loss_Dr1).mean().mul(gain).backward()
+                else:
+                    (real_logits * 0 + loss_Dreal).mean().mul(gain).backward()
 
+        if loss_l1 is None:
+            loss_l1 = torch.Tensor([0]).cuda()
+        if loss_vgg is None:
+            loss_vgg = torch.Tensor([0]).cuda()
+        if loss_Gmain is None:
+            loss_Gmain = torch.Tensor([0]).cuda()
+        if loss_Dgen is None:
+            loss_Dgen = torch.Tensor([0]).cuda()
+        if loss_Dreal is None:
+            loss_Dreal = torch.Tensor([0]).cuda()
+        # print(loss_l1.mean())
+        # print(loss_vgg.mean())
+        # print(loss_Gmain.mean())
+        # print(loss_Dgen.mean())
+        # print(loss_Dreal)
+        # print(loss_Dreal.mean())
         return loss_l1.mean(), loss_vgg.mean(), loss_Gmain.mean(), loss_Dgen.mean(), loss_Dreal.mean()
 
 #----------------------------------------------------------------------------
