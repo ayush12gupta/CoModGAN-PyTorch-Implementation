@@ -258,8 +258,9 @@ def training_loop(
     batch_idx = 0
     if progress_fn is not None:
         progress_fn(0, total_kimg)
+    
+    l1_Loss, vggLoss, drealLoss, gmainLoss, dgenLoss = 0, 0, 0, 0, 0
     while True:
-
         # Fetch training data.
         with torch.autograd.profiler.record_function('data_fetch'):
             phase_real_img, phase_mask, phase_real_c = next(training_set_iterator)
@@ -288,7 +289,12 @@ def training_loop(
             for round_idx, (real_img, real_c, gen_z, gen_c, mask) in enumerate(zip(phase_real_img, phase_real_c, phase_gen_z, phase_gen_c, phase_masks)):
                 sync = (round_idx == batch_size // (batch_gpu * num_gpus) - 1)
                 gain = phase.interval
-                loss.accumulate_gradients(phase=phase.name, real_img=real_img, real_c=real_c, mask=mask, gen_z=gen_z, gen_c=gen_c, sync=sync, gain=gain)
+                loss_l1, loss_vgg, loss_gmain, loss_dgen, loss_dreal = loss.accumulate_gradients(phase=phase.name, real_img=real_img, real_c=real_c, mask=mask, gen_z=gen_z, gen_c=gen_c, sync=sync, gain=gain)
+                l1_Loss += loss_l1
+                vggLoss += loss_vgg
+                drealLoss += loss_dreal
+                gmainLoss += loss_gmain
+                dgenLoss += loss_dgen
 
             # Update weights.
             phase.module.requires_grad_(False)
@@ -373,6 +379,16 @@ def training_loop(
             if rank == 0:
                 with open(snapshot_pkl, 'wb') as f:
                     pickle.dump(snapshot_data, f)
+
+        if cur_nimg%1e3==0:
+            l1_Loss /= 1e3
+            vggLoss /= 1e3
+            drealLoss /= 1e3
+            gmainLoss /= 1e3
+            dgenLoss /= 1e3
+            log = "king: {cur_nimg}  L1 loss: {l1}  Perceptual loss: {vgg}  G_main: {gmain}  D_gen: {dgen}  D_real: {dreal}".format(cur_nimg=cur_nimg/1e3, l1=l1_Loss, vgg=vggLoss, gmain=gmainLoss, dgen=dgenLoss, dreal=drealLoss)
+            print(log)
+            l1_Loss, vggLoss, drealLoss, gmainLoss, dgenLoss = 0, 0, 0, 0, 0
 
         # Evaluate metrics.
         # if (snapshot_data is not None) and (len(metrics) > 0):
