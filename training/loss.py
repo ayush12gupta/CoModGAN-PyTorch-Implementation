@@ -108,19 +108,22 @@ class StyleGAN2Loss(Loss):
         do_Dr1   = (phase in ['Dreg', 'Dboth']) and (self.r1_gamma != 0)
         
         l1_weight = 70
-        loss_l1 = loss_vgg = loss_Dgen = loss_Gmain = loss_Dreal = None
+        sym_weight = 30
+        loss_l1 = loss_vgg = loss_Dgen = loss_Gmain = loss_Dreal = loss_sym = None
         if do_imageq:
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 gen_img, _gen_ws = self.run_G(gen_z, gen_c, real_img, mask, sync=(sync and not do_Gpl)) # May get synced by Gpl.
                 gen_logits = self.run_D(gen_img, gen_c, sync=False)
                 loss_vgg = self.vgg_loss(gen_img, real_img)*5
+                gen_img_mirr = torch.fliplr(gen_img)
+                loss_sym = abs(torch.nn.functional.l1_loss(gen_img, gen_img_mirr))*sym_weight
                 # training_stats.report('Loss/scores/fake', gen_logits)
                 # training_stats.report('Loss/signs/fake', gen_logits.sign())
                 loss_l1 = abs(torch.nn.functional.l1_loss(gen_img, real_img))*l1_weight
                 training_stats.report('Loss/G/L1_loss', loss_l1)
                 training_stats.report('Loss/G/Perceptual', loss_vgg)
             with torch.autograd.profiler.record_function('Gmain_backward'):
-                (loss_l1+loss_vgg).mean().mul(gain).backward()
+                (loss_l1+loss_vgg+loss_sym).mean().mul(gain).backward()
 
         # Gmain: Maximize logits for generated images.
         if do_Gmain:
@@ -211,12 +214,14 @@ class StyleGAN2Loss(Loss):
             loss_Dgen = torch.Tensor([0]).cuda()
         if loss_Dreal is None:
             loss_Dreal = torch.Tensor([0]).cuda()
+        if loss_sym is None:
+            loss_sym = torch.Tensor([0]).cuda()
         # print(loss_l1.mean())
         # print(loss_vgg.mean())
         # print(loss_Gmain.mean())
         # print(loss_Dgen.mean())
         # print(loss_Dreal)
         # print(loss_Dreal.mean())
-        return loss_l1.mean(), loss_vgg.mean(), loss_Gmain.mean(), loss_Dgen.mean(), loss_Dreal.mean()
+        return loss_l1.mean(), loss_vgg.mean(), loss_Gmain.mean(), loss_Dgen.mean(), loss_Dreal.mean(), loss_sym.mean()
 
 #----------------------------------------------------------------------------
