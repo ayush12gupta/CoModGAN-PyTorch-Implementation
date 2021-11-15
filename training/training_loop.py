@@ -259,7 +259,7 @@ def training_loop(
     if progress_fn is not None:
         progress_fn(0, total_kimg)
     
-    l1_Loss, vggLoss, drealLoss, gmainLoss, dgenLoss = symLoss = 0, 0, 0, 0, 0, 0
+    l1_Loss, vggLoss, drealLoss, gmainLoss, dgenLoss, symLoss = 0, 0, 0, 0, 0, 0
     while True:
         # Fetch training data.
         with torch.autograd.profiler.record_function('data_fetch'):
@@ -328,6 +328,12 @@ def training_loop(
             adjust = np.sign(ada_stats['Loss/signs/real'] - ada_target) * (batch_size * ada_interval) / (ada_kimg * 1000)
             augment_pipe.p.copy_((augment_pipe.p + adjust).max(misc.constant(0, device=device)))
 
+        if cur_nimg%200:
+            cnt = cur_nimg%1e3
+            if cnt!=0:
+                log = "king: {cur_nimg}  L1 loss: {l1}  L1 Sym loss: {symloss}  Perceptual loss: {vgg}".format(cur_nimg=cur_nimg/1e3, l1=l1_Loss/cnt, symloss=symLoss/cnt, vgg=vggLoss/cnt)
+                print(log)
+
         if cur_nimg%1e3==0:
             l1_Loss /= 1e3
             vggLoss /= 1e3
@@ -337,7 +343,7 @@ def training_loop(
             symLoss /= 1e3
             log = "king: {cur_nimg}  L1 loss: {l1} L1 Sym loss: {symloss}  Perceptual loss: {vgg}  G_main: {gmain}  D_gen: {dgen}  D_real: {dreal}".format(cur_nimg=cur_nimg/1e3, l1=l1_Loss, symloss=symLoss, vgg=vggLoss, gmain=gmainLoss, dgen=dgenLoss, dreal=drealLoss)
             print(log)
-            l1_Loss, vggLoss, drealLoss, gmainLoss, dgenLoss = symLoss = 0, 0, 0, 0, 0, 0
+            l1_Loss, vggLoss, drealLoss, gmainLoss, dgenLoss, symLoss = 0, 0, 0, 0, 0, 0
 
         # Perform maintenance tasks once per tick.
         done = (cur_nimg >= total_kimg * 1000)
