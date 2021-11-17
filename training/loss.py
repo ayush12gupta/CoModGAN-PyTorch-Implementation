@@ -116,7 +116,7 @@ class StyleGAN2Loss(Loss):
                 gen_logits = self.run_D(gen_img, gen_c, sync=False)
                 loss_vgg = self.vgg_loss(gen_img, real_img)*5
                 gen_img_mirr = torch.fliplr(gen_img)
-                loss_sym = abs(torch.nn.functional.l1_loss(gen_img, gen_img_mirr))*sym_weight
+                loss_sym = abs(torch.nn.functional.mse_loss(gen_img, gen_img_mirr))*sym_weight
                 # training_stats.report('Loss/scores/fake', gen_logits)
                 # training_stats.report('Loss/signs/fake', gen_logits.sign())
                 loss_l1 = abs(torch.nn.functional.l1_loss(gen_img, real_img))*l1_weight
