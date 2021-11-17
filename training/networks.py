@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+﻿# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -567,8 +567,7 @@ class SynthesisBlock(torch.nn.Module):
         else:
             x = self.conv0(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, **layer_kwargs)
             # if not self.is_last:
-            x = x + x_skip
-            # print(x.size(), x_global.size(), 'syn block')
+            # x = x + x_skip
             x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, **layer_kwargs)
 
         # ToRGB.
@@ -670,8 +669,12 @@ class SynthesisNetwork(torch.nn.Module):
             out_channels = channels_dict[res]
             use_fp16 = (res >= fp16_resolution)
             is_last = (res == self.img_resolution)
-            block = SynthesisBlock(in_channels, out_channels, w_dim=w_dim, resolution=res,
-                img_channels=img_channels, is_last=is_last, use_fp16=use_fp16, **block_kwargs)
+            if res<128:
+                block = SynthesisBlock(in_channels, out_channels, w_dim=w_dim, resolution=res,
+                    img_channels=img_channels, is_last=is_last, use_fp16=use_fp16, **block_kwargs)
+            else:
+                block = SynthesisBlock(in_channels, out_channels, w_dim=w_dim, resolution=res,
+                    img_channels=img_channels, is_last=is_last, use_fp16=use_fp16, architecture='orig', **block_kwargs)
             self.num_ws += block.num_conv
             if is_last:
                 self.num_ws += block.num_torgb

@@ -26,6 +26,7 @@ class Dataset(torch.utils.data.Dataset):
     def __init__(self,
         name,                   # Name of the dataset.
         raw_shape,              # Shape of the raw image data (NCHW).
+        random_mask = True,
         max_size    = None,     # Artificially limit the size of the dataset. None = no limit. Applied before xflip.
         use_labels  = False,    # Enable conditioning labels? False = label dimension is zero.
         xflip       = False,    # Artificially double the size of the dataset via x-flips. Applied after max_size.
@@ -38,6 +39,7 @@ class Dataset(torch.utils.data.Dataset):
         self._use_labels = use_labels
         self._raw_labels = None
         self._label_shape = None
+        self.random_mask = random_mask
 
         self.mask_generator = get_mask_generator(kind=mask_generator_kind, kwargs=mask_gen_kwargs)
         # Apply max_size.
@@ -90,10 +92,12 @@ class Dataset(torch.utils.data.Dataset):
         return self._raw_idx.size
 
     def __getitem__(self, idx):
-        mask_idx = random.randint(0, len(self._raw_idx)-1)
-        #mask_image = self._load_mask_image(self._raw_idx[mask_idx])
         raw_image = self._load_raw_image(self._raw_idx[idx])
-        mask_image = self.mask_generator(raw_image, iter_i=self.iter_i)*255.
+        if self.random_mask:
+            mask_image = self.mask_generator(raw_image, iter_i=self.iter_i)*255.
+        else:
+            mask_idx = random.randint(0, len(self._raw_idx)-1)
+            mask_image = self._load_mask_image(self._raw_idx[mask_idx])
         mask_image = np.uint8(mask_image)
         assert isinstance(raw_image, np.ndarray)
         assert list(raw_image.shape) == self.image_shape
