@@ -340,15 +340,15 @@ def get_mask_generator(kind, kwargs):
                         "max_angle": 4,
                         "max_len": 400,
                         "max_width": 200,
-                        "max_times": 6,
-                        "min_times": 3
+                        "max_times": 5,
+                        "min_times": 2
                     },
                     "box_proba": 1,
                     "box_kwargs": {
                         "margin": 0,
                         "bbox_min_size": 80,
                         "bbox_max_size": 250,
-                        "max_times": 7,
+                        "max_times": 6,
                         "min_times": 3
                     },
                     "segm_proba": 0
