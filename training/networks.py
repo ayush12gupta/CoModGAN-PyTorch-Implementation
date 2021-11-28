@@ -669,10 +669,10 @@ class SynthesisNetwork(torch.nn.Module):
             out_channels = channels_dict[res]
             use_fp16 = (res >= fp16_resolution)
             is_last = (res == self.img_resolution)
-            if res<128:
+            if res<128:  # With cross connections
                 block = SynthesisBlock(in_channels, out_channels, w_dim=w_dim, resolution=res,
                     img_channels=img_channels, is_last=is_last, use_fp16=use_fp16, **block_kwargs)
-            else:
+            else: 
                 block = SynthesisBlock(in_channels, out_channels, w_dim=w_dim, resolution=res,
                     img_channels=img_channels, is_last=is_last, use_fp16=use_fp16, architecture='orig', **block_kwargs)
             self.num_ws += block.num_conv
