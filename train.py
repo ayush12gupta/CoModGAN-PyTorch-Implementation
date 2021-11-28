@@ -105,7 +105,7 @@ def setup_training_loop_kwargs(
     # -----------------------------------
 
     assert data is not None
-    assert mask_data is not None
+    # assert mask_data is not None
     assert isinstance(data, str)
     args.training_set_kwargs = dnnlib.EasyDict(class_name='training.dataset.ImageFolderDataset', path=data, mask_path=mask_data, random_mask=random_mask, use_labels=True, max_size=None, xflip=False)
     args.data_loader_kwargs = dnnlib.EasyDict(pin_memory=True, num_workers=3, prefetch_factor=2)

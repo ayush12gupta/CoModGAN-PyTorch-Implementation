@@ -1,1 +1,1 @@
-python train.py --outdir="./training-runs" --data="../comp.zip" --mask_data="../mask.zip" --gpus=1
+python3 train.py --outdir=../pretrained/ --data=../dataset/train_512/ --snap 1 --gpus=2 --batch 32 --resume=../pretrained/ffhq-res512-mirror-stylegan2-noaug.pkl --augpipe=bg --gamma=10 --cfg=stylegan2 --mirror=0 --metrics=none
