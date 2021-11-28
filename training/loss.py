@@ -110,7 +110,7 @@ class StyleGAN2Loss(Loss):
         do_Dr1   = (phase in ['Dreg', 'Dboth']) and (self.r1_gamma != 0)
         
         l1_weight = 70
-        sym_weight = 30
+        sym_weight = 70
         loss_l1 = loss_vgg = loss_Dgen = loss_Gmain = loss_Dreal = loss_sym = None
         if do_imageq:
             with torch.autograd.profiler.record_function('Gmain_forward'):
