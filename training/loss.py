@@ -116,16 +116,19 @@ class StyleGAN2Loss(Loss):
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 gen_img, _gen_ws = self.run_G(gen_z, gen_c, real_img, mask, sync=(sync and not do_Gpl)) # May get synced by Gpl.
                 gen_logits = self.run_D(gen_img, gen_c, sync=False)
-                loss_vgg = self.vgg_loss(gen_img, real_img)*5
+                # loss_vgg = self.vgg_loss(gen_img, real_img)*5
                 gen_img_mirr = torch.fliplr(gen_img)
                 loss_sym = abs(torch.nn.functional.l1_loss(gen_img, gen_img_mirr))*sym_weight
                 # training_stats.report('Loss/scores/fake', gen_logits)
                 # training_stats.report('Loss/signs/fake', gen_logits.sign())
                 loss_l1 = abs(torch.nn.functional.l1_loss(gen_img, real_img))*l1_weight
                 training_stats.report('Loss/G/L1_loss', loss_l1)
-                training_stats.report('Loss/G/Perceptual', loss_vgg)
+                # training_stats.report('Loss/G/Perceptual', loss_vgg)
             with torch.autograd.profiler.record_function('Gmain_backward'):
-                (loss_l1+loss_vgg+loss_sym).mean().mul(gain).backward()
+                if loss_vgg is None:
+                    (loss_l1+loss_sym).mean().mul(gain).backward()
+                else:
+                    (loss_l1+loss_vgg+loss_sym).mean().mul(gain).backward()
 
         # Gmain: Maximize logits for generated images.
         if do_Gmain:
