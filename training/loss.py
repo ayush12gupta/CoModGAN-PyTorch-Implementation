@@ -7,11 +7,13 @@
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import numpy as np
+import os
 import torch
 import torchvision
 from torch_utils import training_stats
 from torch_utils import misc
 from torch_utils.ops import conv2d_gradfix
+os.environ['TORCH_HOME'] = '../pretrained/'
 
 #----------------------------------------------------------------------------
 class VGGPerceptualLoss(torch.nn.Module):
