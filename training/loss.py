@@ -91,7 +91,11 @@ class Vgg16(torch.nn.Module):
         for param in self.parameters():
             param.requires_grad = False
 
-    def get_outputs(self, x):
+    def get_outputs(self, x, device):
+        self.to_relu_1_2 = self.to_relu_1_2.to(device)
+        self.to_relu_2_2 = self.to_relu_2_2.to(device)
+        self.to_relu_3_3 = self.to_relu_3_3.to(device)
+        self.to_relu_4_3 = self.to_relu_4_3.to(device)
         h = self.to_relu_1_2(x)
         h_relu_1_2 = h
         h = self.to_relu_2_2(h)
@@ -105,20 +109,20 @@ class Vgg16(torch.nn.Module):
 
     def forward(self, y, y_hat):
         device = y_hat.get_device()
-        y = y.cpu()
-        y_hat = y_hat.cpu()
+        # y = y.cpu()
+        # y_hat = y_hat.cpu()
         # aggregate_style_loss = 0.0
         aggregate_content_loss = 0.0
 
-        y_features = self.get_outputs(y)
-        y_hat_features = self.get_outputs(y_hat)
+        y_features = self.get_outputs(y, device)
+        y_hat_features = self.get_outputs(y_hat, device)
 
         # Calculating content loss
         recon = y_features[1]
         recon_hat = y_hat_features[1]
         content_loss = self.CONTENT_WEIGHT * self.loss_mse(recon_hat, recon)
         aggregate_content_loss += content_loss.data*10
-        return aggregate_content_loss.to(device)
+        return aggregate_content_loss#.to(device)
 
 
 #----------------------------------------------------------------------------
