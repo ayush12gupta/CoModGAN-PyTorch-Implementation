@@ -68,7 +68,7 @@ def gram(x):
 class Vgg16(torch.nn.Module):
     def __init__(self, content_wt=1e0, style_wt = 1e5):
         super(Vgg16, self).__init__()
-        features = torchvision.models.vgg16(pretrained=True).cuda().features
+        features = torchvision.models.vgg16(pretrained=True).features
         self.to_relu_1_2 = torch.nn.Sequential()
         self.to_relu_2_2 = torch.nn.Sequential()
         self.to_relu_3_3 = torch.nn.Sequential()
@@ -104,6 +104,9 @@ class Vgg16(torch.nn.Module):
         return out
 
     def forward(self, y, y_hat):
+        device = y_hat.get_device()
+        y = y.cpu()
+        y_hat = y_hat.cpu()
         # aggregate_style_loss = 0.0
         aggregate_content_loss = 0.0
 
@@ -115,7 +118,7 @@ class Vgg16(torch.nn.Module):
         recon_hat = y_hat_features[1]
         content_loss = self.CONTENT_WEIGHT * self.loss_mse(recon_hat, recon)
         aggregate_content_loss += content_loss.data*10
-        return aggregate_content_loss
+        return aggregate_content_loss.to(device)
 
 
 #----------------------------------------------------------------------------
