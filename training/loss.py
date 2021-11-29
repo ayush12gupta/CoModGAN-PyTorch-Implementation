@@ -16,47 +16,107 @@ from torch_utils.ops import conv2d_gradfix
 os.environ['TORCH_HOME'] = '/shared/storage/cs/staffstore/ag2157/pretrained/'
 
 #----------------------------------------------------------------------------
-class VGGPerceptualLoss(torch.nn.Module):
-    def __init__(self, resize=True):
-        super(VGGPerceptualLoss, self).__init__()
-        blocks = []
-        blocks.append(torchvision.models.vgg16(pretrained=True).cuda().features[:4].eval())
-        blocks.append(torchvision.models.vgg16(pretrained=True).cuda().features[4:9].eval())
-        blocks.append(torchvision.models.vgg16(pretrained=True).cuda().features[9:16].eval())
-        blocks.append(torchvision.models.vgg16(pretrained=True).cuda().features[16:23].eval())
-        for bl in blocks:
-            for p in bl.parameters():
-                p.requires_grad = False
-        self.blocks = torch.nn.ModuleList(blocks)
-        self.transform = torch.nn.functional.interpolate
-        self.resize = resize
-        self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).cuda().view(1, 3, 1, 1))
-        self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).cuda().view(1, 3, 1, 1))
+# class VGGPerceptualLoss(torch.nn.Module):
+#     def __init__(self, resize=True):
+#         super(VGGPerceptualLoss, self).__init__()
+#         blocks = []
+#         blocks.append(torchvision.models.vgg16(pretrained=True).cuda().features[:4].eval())
+#         blocks.append(torchvision.models.vgg16(pretrained=True).cuda().features[4:9].eval())
+#         blocks.append(torchvision.models.vgg16(pretrained=True).cuda().features[9:16].eval())
+#         blocks.append(torchvision.models.vgg16(pretrained=True).cuda().features[16:23].eval())
+#         for bl in blocks:
+#             for p in bl.parameters():
+#                 p.requires_grad = False
+#         self.blocks = torch.nn.ModuleList(blocks)
+#         self.transform = torch.nn.functional.interpolate
+#         self.resize = resize
+#         self.register_buffer("mean", torch.tensor([0.485, 0.456, 0.406]).cuda().view(1, 3, 1, 1))
+#         self.register_buffer("std", torch.tensor([0.229, 0.224, 0.225]).cuda().view(1, 3, 1, 1))
 
-    def forward(self, input, target, feature_layers=[0, 1, 2, 3], style_layers=[]):
-        if input.shape[1] != 3:
-            input = input.repeat(1, 3, 1, 1)
-            target = target.repeat(1, 3, 1, 1)
-        input = (input-self.mean) / self.std
-        target = (target-self.mean) / self.std
-        if self.resize:
-            input = self.transform(input, mode='bilinear', size=(224, 224), align_corners=False)
-            target = self.transform(target, mode='bilinear', size=(224, 224), align_corners=False)
-        loss = 0.0
-        x = input
-        y = target
-        for i, block in enumerate(self.blocks):
-            x = block(x)
-            y = block(y)
-            if i in feature_layers:
-                loss += torch.nn.functional.l1_loss(x, y)
-            if i in style_layers:
-                act_x = x.reshape(x.shape[0], x.shape[1], -1)
-                act_y = y.reshape(y.shape[0], y.shape[1], -1)
-                gram_x = act_x @ act_x.permute(0, 2, 1)
-                gram_y = act_y @ act_y.permute(0, 2, 1)
-                loss += torch.nn.functional.l1_loss(gram_x, gram_y)
-        return loss
+#     def forward(self, input, target, feature_layers=[0, 1, 2, 3], style_layers=[]):
+#         if input.shape[1] != 3:
+#             input = input.repeat(1, 3, 1, 1)
+#             target = target.repeat(1, 3, 1, 1)
+#         input = (input-self.mean) / self.std
+#         target = (target-self.mean) / self.std
+#         if self.resize:
+#             input = self.transform(input, mode='bilinear', size=(224, 224), align_corners=False)
+#             target = self.transform(target, mode='bilinear', size=(224, 224), align_corners=False)
+#         loss = 0.0
+#         x = input
+#         y = target
+#         for i, block in enumerate(self.blocks):
+#             x = block(x)
+#             y = block(y)
+#             if i in feature_layers:
+#                 loss += torch.nn.functional.l1_loss(x, y)
+#             if i in style_layers:
+#                 act_x = x.reshape(x.shape[0], x.shape[1], -1)
+#                 act_y = y.reshape(y.shape[0], y.shape[1], -1)
+#                 gram_x = act_x @ act_x.permute(0, 2, 1)
+#                 gram_y = act_y @ act_y.permute(0, 2, 1)
+#                 loss += torch.nn.functional.l1_loss(gram_x, gram_y)
+#         return loss
+def gram(x):
+    (bs, ch, h, w) = x.size()
+    f = x.view(bs, ch, w*h)
+    f_T = f.transpose(1, 2)
+    G = f.bmm(f_T) / (ch * h * w)
+    return G
+
+
+class Vgg16(torch.nn.Module):
+    def __init__(self, content_wt=1e0, style_wt = 1e5):
+        super(Vgg16, self).__init__()
+        features = torchvision.models.vgg16(pretrained=True).features
+        self.to_relu_1_2 = torch.nn.Sequential()
+        self.to_relu_2_2 = torch.nn.Sequential()
+        self.to_relu_3_3 = torch.nn.Sequential()
+        self.to_relu_4_3 = torch.nn.Sequential()
+        self.loss_mse = torch.nn.MSELoss()
+
+        self.CONTENT_WEIGHT = content_wt
+        self.STYLE_WEIGHT = style_wt
+
+        for x in range(4):
+            self.to_relu_1_2.add_module(str(x), features[x])
+        for x in range(4, 9):
+            self.to_relu_2_2.add_module(str(x), features[x])
+        for x in range(9, 16):
+            self.to_relu_3_3.add_module(str(x), features[x])
+        for x in range(16, 23):
+            self.to_relu_4_3.add_module(str(x), features[x])
+
+        # don't need the gradients, just want the features
+        for param in self.parameters():
+            param.requires_grad = False
+
+    def get_outputs(self, x):
+        h = self.to_relu_1_2(x)
+        h_relu_1_2 = h
+        h = self.to_relu_2_2(h)
+        h_relu_2_2 = h
+        h = self.to_relu_3_3(h)
+        h_relu_3_3 = h
+        h = self.to_relu_4_3(h)
+        h_relu_4_3 = h
+        out = (h_relu_1_2, h_relu_2_2, h_relu_3_3, h_relu_4_3)
+        return out
+
+    def forward(self, y, y_hat):
+        # aggregate_style_loss = 0.0
+        aggregate_content_loss = 0.0
+
+        y_features = self.get_outputs(y)
+        y_hat_features = self.get_outputs(y_hat)
+
+        # Calculating content loss
+        recon = y_features[1]
+        recon_hat = y_hat_features[1]
+        content_loss = self.CONTENT_WEIGHT * self.loss_mse(recon_hat, recon)
+        aggregate_content_loss += content_loss.data*10
+        return aggregate_content_loss
+
 
 #----------------------------------------------------------------------------
 
@@ -79,7 +139,7 @@ class StyleGAN2Loss(Loss):
         self.pl_batch_shrink = pl_batch_shrink
         self.pl_decay = pl_decay
         self.pl_weight = pl_weight
-        self.vgg_loss = VGGPerceptualLoss()
+        self.vgg_loss = Vgg16() #VGGPerceptualLoss()
         self.pl_mean = torch.zeros([], device=device)
 
     def run_G(self, z, c, img, mask, sync):
@@ -116,7 +176,7 @@ class StyleGAN2Loss(Loss):
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 gen_img, _gen_ws = self.run_G(gen_z, gen_c, real_img, mask, sync=(sync and not do_Gpl)) # May get synced by Gpl.
                 gen_logits = self.run_D(gen_img, gen_c, sync=False)
-                loss_vgg = self.vgg_loss(gen_img, real_img)*5
+                loss_vgg = self.vgg_loss(real_img, gen_img)#*5
                 gen_img_mirr = torch.fliplr(gen_img)
                 loss_sym = abs(torch.nn.functional.l1_loss(gen_img, gen_img_mirr))*sym_weight
                 # training_stats.report('Loss/scores/fake', gen_logits)
