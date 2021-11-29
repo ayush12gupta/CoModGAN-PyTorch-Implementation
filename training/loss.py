@@ -68,7 +68,7 @@ def gram(x):
 class Vgg16(torch.nn.Module):
     def __init__(self, content_wt=1e0, style_wt = 1e5):
         super(Vgg16, self).__init__()
-        features = torchvision.models.vgg16(pretrained=True).features
+        features = torchvision.models.vgg16(pretrained=True).cuda().features
         self.to_relu_1_2 = torch.nn.Sequential()
         self.to_relu_2_2 = torch.nn.Sequential()
         self.to_relu_3_3 = torch.nn.Sequential()
