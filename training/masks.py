@@ -338,9 +338,9 @@ def get_mask_generator(kind, kwargs):
         kwargs = {  "irregular_proba": 1,
                     "irregular_kwargs": {
                         "max_angle": 4,
-                        "max_len": 400,
-                        "max_width": 200,
-                        "max_times": 5,
+                        "max_len": 300,
+                        "max_width": 100,
+                        "max_times": 3,
                         "min_times": 2
                     },
                     "box_proba": 1,
