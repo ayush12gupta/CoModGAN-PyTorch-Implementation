@@ -109,6 +109,7 @@ class Vgg16(torch.nn.Module):
 
     def forward(self, y, y_hat):
         device = y_hat.get_device()
+        assert y_hat.device is device
         # y = y.cpu()
         # y_hat = y_hat.cpu()
         # aggregate_style_loss = 0.0
