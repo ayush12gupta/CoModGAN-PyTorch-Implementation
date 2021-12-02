@@ -565,10 +565,10 @@ class SynthesisBlock(torch.nn.Module):
             x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, gain=np.sqrt(0.5), **layer_kwargs)
             x = y.add_(x)
         else:
-            x = self.conv0(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, **layer_kwargs)
+            x = self.conv0(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=False, **layer_kwargs)
             # if not self.is_last:
             # x = x + x_skip
-            x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=cond, **layer_kwargs)
+            x = self.conv1(x, next(w_iter), x_global=x_global, fused_modconv=fused_modconv, cond_mod=False, **layer_kwargs)
 
         # ToRGB.
         if img is not None:
@@ -669,7 +669,7 @@ class SynthesisNetwork(torch.nn.Module):
             out_channels = channels_dict[res]
             use_fp16 = (res >= fp16_resolution)
             is_last = (res == self.img_resolution)
-            if res<2:  # With cross connections
+            if res<8:  # With cross connections
                 block = SynthesisBlock(in_channels, out_channels, w_dim=w_dim, resolution=res,
                     img_channels=img_channels, is_last=is_last, use_fp16=use_fp16, **block_kwargs)
             else: 
