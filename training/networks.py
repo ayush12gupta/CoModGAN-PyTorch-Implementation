@@ -669,7 +669,7 @@ class SynthesisNetwork(torch.nn.Module):
             out_channels = channels_dict[res]
             use_fp16 = (res >= fp16_resolution)
             is_last = (res == self.img_resolution)
-            if res<8:  # With cross connections
+            if res<4:  # With cross connections
                 block = SynthesisBlock(in_channels, out_channels, w_dim=w_dim, resolution=res,
                     img_channels=img_channels, is_last=is_last, use_fp16=use_fp16, **block_kwargs)
             else: 
@@ -697,7 +697,7 @@ class SynthesisNetwork(torch.nn.Module):
         # Main Encoder Layers
         # print(torch.max(mask_in), torch.min(mask_in), torch.max(image_in), torch.min(image_in))
         # y = torch.cat((mask_in-0.5, image_in * mask_in), dim = 1)
-        y = image_in*mask_in
+        y = image_in  #*mask_in
         for res in range(self.img_resolution_log2, 2, -1):
             block = getattr(self, 'E_' + f'b{res}')
             if res == self.img_resolution_log2:

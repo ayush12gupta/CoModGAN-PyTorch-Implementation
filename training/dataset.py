@@ -93,6 +93,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         raw_image = self._load_raw_image(self._raw_idx[idx])
+        raw_ldmks = self._load_raw_ldmks(self._raw_idx[idx])
         if self.random_mask:
             mask_image = self.mask_generator(raw_image, iter_i=self.iter_i)*255.
         else:
@@ -109,7 +110,7 @@ class Dataset(torch.utils.data.Dataset):
             raw_image = raw_image[:, :, ::-1]
             mask_image = mask_image[:, :, ::-1]
         self.iter_i += 1
-        return raw_image.copy(), mask_image.copy(), self.get_label(idx)
+        return raw_image.copy(), mask_image.copy(), raw_ldmks.copy(), self.get_label(idx)
 
     def get_label(self, idx):
         label = self._get_raw_labels()[self._raw_idx[idx]]
@@ -174,11 +175,13 @@ class ImageFolderDataset(Dataset):
     def __init__(self,
         path,                   # Path to directory or zip.
         mask_path,
+        ldmks_path,
         resolution      = None, # Ensure specific resolution, None = highest available.
         **super_kwargs,         # Additional arguments for the Dataset base class.
     ):
         self._path = path
         self._mask_path = mask_path
+        self._ldmks_path = ldmks_path
         self._zipfile = None
 
         if os.path.isdir(self._path):
@@ -248,6 +251,12 @@ class ImageFolderDataset(Dataset):
             image = image[:, :, np.newaxis] # HW => HWC
         image = image.transpose(2, 0, 1) # HWC => CHW
         return image
+
+    def _load_raw_ldmks(self, raw_idx):
+        fname = self._image_fnames[raw_idx]
+        lm_path = os.path.join(self._mask_path, fname[:-3] + 'txt')
+        ldmks = np.loadtxt(lm_path).astype(np.float32)
+        return ldmks
 
     def _load_mask_image(self, raw_idx):
         fname = self._image_fnames[raw_idx]

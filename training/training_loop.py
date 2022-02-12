@@ -20,6 +20,9 @@ from torch_utils import misc
 from torch_utils import training_stats
 from torch_utils.ops import conv2d_gradfix
 from torch_utils.ops import grid_sample_gradfix
+from fitting.rendering_option import FittingOptions
+
+from fitting import create_model
 
 import legacy
 from metrics import metric_main
@@ -84,6 +87,7 @@ def save_image_grid(img, fname, drange, grid_size):
         PIL.Image.fromarray(img, 'RGB').save(fname)
 
 #----------------------------------------------------------------------------
+#    fitting_kwargs          = {},       # Options for 3DMM fitting network.
 
 def training_loop(
     run_dir                 = '.',      # Output directory.
@@ -149,6 +153,10 @@ def training_loop(
     common_kwargs = dict(c_dim=training_set.label_dim, img_resolution=training_set.resolution, img_channels=training_set.num_channels)
     G = dnnlib.util.construct_class_by_name(**G_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
     D = dnnlib.util.construct_class_by_name(**D_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
+    fitting_opt = FittingOptions().parse()  
+    fitting = create_model(fitting_opt).requires_grad_(False) # subclass of torch.nn.Module
+    fitting.setup(fitting_opt)
+    fitting.device = device
     G_ema = copy.deepcopy(G).eval()
 
     # Resume from existing pickle.
@@ -194,6 +202,7 @@ def training_loop(
     # Setup training phases.
     if rank == 0:
         print('Setting up training phases...')
+    ddp_modules['fitting'] = fitting
     loss = dnnlib.util.construct_class_by_name(device=device, **ddp_modules, **loss_kwargs) # subclass of training.loss.Loss
     phases = []
     for name, module, opt_kwargs, reg_interval in [('G', G, G_opt_kwargs, G_reg_interval), ('D', D, D_opt_kwargs, D_reg_interval)]:
@@ -263,8 +272,9 @@ def training_loop(
     while True:
         # Fetch training data.
         with torch.autograd.profiler.record_function('data_fetch'):
-            phase_real_img, phase_mask, phase_real_c = next(training_set_iterator)
+            phase_real_img, phase_mask, phase_ldmks, phase_real_c = next(training_set_iterator)
             phase_real_img = (phase_real_img.to(device).to(torch.float32) / 127.5 - 1).split(batch_gpu)
+            phase_ldmks = phase_ldmks.to(device).to(torch.float32).split(batch_gpu)
             # phase_image = (phase_image.to(device).to(torch.float32) / 127.5 - 1).split(batch_gpu)
             phase_masks = (phase_mask.to(device).to(torch.float32) / 255.).split(batch_gpu)
             phase_real_c = phase_real_c.to(device).split(batch_gpu)
@@ -286,10 +296,10 @@ def training_loop(
             phase.module.requires_grad_(True)
 
             # Accumulate gradients over multiple rounds.
-            for round_idx, (real_img, real_c, gen_z, gen_c, mask) in enumerate(zip(phase_real_img, phase_real_c, phase_gen_z, phase_gen_c, phase_masks)):
+            for round_idx, (real_img, real_c, gen_z, gen_c, mask, ldmks) in enumerate(zip(phase_real_img, phase_real_c, phase_gen_z, phase_gen_c, phase_masks, phase_ldmks)):
                 sync = (round_idx == batch_size // (batch_gpu * num_gpus) - 1)
                 gain = phase.interval
-                loss_l1, loss_vgg, loss_gmain, loss_dgen, loss_dreal, loss_sym = loss.accumulate_gradients(phase=phase.name, real_img=real_img, real_c=real_c, mask=mask, gen_z=gen_z, gen_c=gen_c, sync=sync, gain=gain)
+                loss_l1, loss_vgg, loss_gmain, loss_dgen, loss_dreal, loss_sym = loss.accumulate_gradients(phase=phase.name, real_img=real_img, real_c=real_c, mask=mask, gen_z=gen_z, gen_c=gen_c, ldmks=ldmks, sync=sync, gain=gain)
                 l1_Loss += loss_l1.cpu()
                 vggLoss += loss_vgg.cpu()
                 drealLoss += loss_dreal.cpu()

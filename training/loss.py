@@ -13,6 +13,8 @@ import torchvision
 from torch_utils import training_stats
 from torch_utils import misc
 from torch_utils.ops import conv2d_gradfix
+from pytorch3d.structures import Meshes
+from pytorch3d.renderer import Textures
 os.environ['TORCH_HOME'] = '/shared/storage/cs/staffstore/ag2157/pretrained/'
 
 #----------------------------------------------------------------------------
@@ -130,18 +132,19 @@ class Vgg16(torch.nn.Module):
 #----------------------------------------------------------------------------
 
 class Loss:
-    def accumulate_gradients(self, phase, real_img, real_c, gen_z, gen_c, sync, gain): # to be overridden by subclass
+    def accumulate_gradients(self, phase, real_img, real_c, gen_z, gen_c, ldmks, sync, gain): # to be overridden by subclass
         raise NotImplementedError()
 
 #----------------------------------------------------------------------------
 
 class StyleGAN2Loss(Loss):
-    def __init__(self, device, G_mapping, G_synthesis, D, augment_pipe=None, style_mixing_prob=0.9, r1_gamma=10, pl_batch_shrink=2, pl_decay=0.01, pl_weight=2):
+    def __init__(self, device, G_mapping, G_synthesis, D, fitting, augment_pipe=None, style_mixing_prob=0.9, r1_gamma=10, pl_batch_shrink=2, pl_decay=0.01, pl_weight=2):
         super().__init__()
         self.device = device
         self.G_mapping = G_mapping
         self.G_synthesis = G_synthesis
         self.D = D
+        self.fitting = fitting
         self.augment_pipe = augment_pipe
         self.style_mixing_prob = style_mixing_prob
         self.r1_gamma = r1_gamma
@@ -169,8 +172,16 @@ class StyleGAN2Loss(Loss):
         with misc.ddp_sync(self.D, sync):
             logits = self.D(img, c)
         return logits
+    
+    def gen_img(self, img, texture):
+        n_b = img.size()[0]
+        shape = self.fitting(img)
+        textures = Textures(verts_uvs=self.fitting.verts_uvs, faces_uvs=self.fitting.facemodel.face_buf.repeat(n_b, 1, 1), maps=img)
+        meshes = Meshes(shape, self.tri.repeat(n_b, 1, 1), textures)
+        rendered_img = self.fitting.renderer(meshes)
+        return rendered_img[..., :3], rendered_img[..., 3:]
 
-    def accumulate_gradients(self, phase, real_img, real_c, mask, gen_z, gen_c, sync, gain):
+    def accumulate_gradients(self, phase, real_img, real_c, mask, gen_z, gen_c, ldmks, sync, gain):
         assert phase in ['Gmain', 'Greg', 'Gboth', 'Dmain', 'Dreg', 'Dboth']
         do_Gmain = (phase in ['Gmain', 'Gboth'])
         do_imageq = (phase in ['Gmain', 'Gboth'])
@@ -188,9 +199,10 @@ class StyleGAN2Loss(Loss):
                 loss_vgg = self.vgg_loss(real_img, gen_img)#*5
                 gen_img_mirr = torch.fliplr(gen_img)
                 loss_sym = abs(torch.nn.functional.l1_loss(gen_img, gen_img_mirr))*sym_weight
+                rend_img, rend_mask = self.gen_img(real_img, gen_img)
                 # training_stats.report('Loss/scores/fake', gen_logits)
                 # training_stats.report('Loss/signs/fake', gen_logits.sign())
-                loss_l1 = abs(torch.nn.functional.l1_loss(gen_img, real_img))*l1_weight
+                loss_l1 = abs(torch.nn.functional.l1_loss(rend_img*rend_mask, real_img*rend_mask))*l1_weight
                 training_stats.report('Loss/G/L1_loss', loss_l1)
                 # training_stats.report('Loss/G/Perceptual', loss_vgg)
             with torch.autograd.profiler.record_function('Gmain_backward'):
