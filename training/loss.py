@@ -199,9 +199,9 @@ class StyleGAN2Loss(Loss):
                 loss_vgg = self.vgg_loss(real_img, gen_img)#*5
                 gen_img_mirr = torch.fliplr(gen_img)
                 loss_sym = abs(torch.nn.functional.l1_loss(gen_img, gen_img_mirr))*sym_weight
-                rend_img, rend_mask = self.gen_img(real_img, gen_img)
                 # training_stats.report('Loss/scores/fake', gen_logits)
                 # training_stats.report('Loss/signs/fake', gen_logits.sign())
+                rend_img, rend_mask = self.gen_img(real_img, gen_img)
                 loss_l1 = abs(torch.nn.functional.l1_loss(rend_img*rend_mask, real_img*rend_mask))*l1_weight
                 training_stats.report('Loss/G/L1_loss', loss_l1)
                 # training_stats.report('Loss/G/Perceptual', loss_vgg)
@@ -219,7 +219,8 @@ class StyleGAN2Loss(Loss):
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
                 loss_Gmain = torch.nn.functional.softplus(-gen_logits) # -log(sigmoid(gen_logits))
-                loss_l1 = abs(torch.nn.functional.l1_loss(gen_img, real_img))*l1_weight
+                rend_img, rend_mask = self.gen_img(real_img, gen_img)
+                loss_l1 = abs(torch.nn.functional.l1_loss(rend_img*rend_mask, real_img*rend_mask))*l1_weight
                 training_stats.report('Loss/G/loss', loss_Gmain)
                 training_stats.report('Loss/G/L1loss', loss_l1)
             with torch.autograd.profiler.record_function('Gmain_backward'):

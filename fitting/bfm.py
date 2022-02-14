@@ -359,10 +359,6 @@ class ParametricFaceModel:
             coeffs          -- torch.tensor, size (B, 257)
         """
         coef_dict = self.split_coeff(coeffs)
-        # coef_dict['angle'][0][0] = 0.01  # x
-        # coef_dict['angle'][0][1] = np.pi  # y
-        # coef_dict['angle'][0][2] = 0.01    # z
-        
         face_shape = self.compute_shape(coef_dict['id'], coef_dict['exp']) # vs
         rotation = self.compute_rotation(coef_dict['angle'])               # angle
 
