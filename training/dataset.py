@@ -254,7 +254,7 @@ class ImageFolderDataset(Dataset):
 
     def _load_raw_ldmks(self, raw_idx):
         fname = self._image_fnames[raw_idx]
-        lm_path = os.path.join(self._mask_path, fname[:-3] + 'txt')
+        lm_path = os.path.join(self._ldmks_path, fname[:-3] + 'txt')
         ldmks = np.loadtxt(lm_path).astype(np.float32)
         return ldmks
 
