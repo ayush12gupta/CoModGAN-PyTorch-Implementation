@@ -5,7 +5,7 @@ import numpy as np
 import  torch
 import torch.nn.functional as F
 from scipy.io import loadmat
-from util.load_mats import transferBFM09
+from .util.load_mats import transferBFM09
 import os
 import cv2
 import eos

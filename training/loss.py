@@ -10,6 +10,7 @@ import numpy as np
 import os
 import torch
 import torchvision
+import torchvision.transforms as T
 from torch_utils import training_stats
 from torch_utils import misc
 from torch_utils.ops import conv2d_gradfix
@@ -153,6 +154,7 @@ class StyleGAN2Loss(Loss):
         self.pl_weight = pl_weight
         self.vgg_loss = Vgg16() #VGGPerceptualLoss()
         self.pl_mean = torch.zeros([], device=device)
+        self.transf = T.Resize(224)
 
     def run_G(self, z, c, img, mask, sync):
         with misc.ddp_sync(self.G_mapping, sync):
@@ -175,8 +177,9 @@ class StyleGAN2Loss(Loss):
     
     def gen_img(self, img, texture):
         n_b = img.size()[0]
-        shape = self.fitting(img)
-        textures = Textures(verts_uvs=self.fitting.verts_uvs, faces_uvs=self.fitting.facemodel.face_buf.repeat(n_b, 1, 1), maps=img)
+        imgen = self.transf(img)     # Resizing the image to 224x224 for the 3dmm encoder
+        shape = self.fitting(imgen)
+        textures = Textures(verts_uvs=self.fitting.verts_uvs, faces_uvs=self.fitting.facemodel.face_buf.repeat(n_b, 1, 1), maps=texture)
         meshes = Meshes(shape, self.tri.repeat(n_b, 1, 1), textures)
         rendered_img = self.fitting.renderer(meshes)
         return rendered_img[..., :3], rendered_img[..., 3:]
