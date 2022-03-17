@@ -9,4 +9,3 @@ click
 psutil
 scipy
 scikit-image
-git+https://github.com/facebookresearch/pytorch3d.git@v0.5.0
