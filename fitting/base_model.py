@@ -19,7 +19,7 @@ class BaseModel(ABC):
         -- <modify_commandline_options>:    (optionally) add model-specific options and set default options.
     """
 
-    def __init__(self, opt):
+    def __init__(self, savedir, checkpoints_dir, pretrained_name, isTrain=False):
         """Initialize the BaseModel class.
 
         Parameters:
@@ -33,10 +33,15 @@ class BaseModel(ABC):
             -- self.visual_names (str list):        define networks used in our training.
             -- self.optimizers (optimizer list):    define and initialize optimizers. You can define one optimizer for each network. If two networks are updated at the same time, you can use itertools.chain to group them. See cycle_gan_model.py for an example.
         """
-        self.opt = opt
-        self.isTrain = opt.isTrain
+        # self.opt = opt
+        self.isTrain = isTrain
+        self.checkpoints_dir = checkpoints_dir
+        self.pretrained_name = pretrained_name
+        self.continue_train = True
+        self.phase = 'test'
+        self.use_dpp = True
         self.device = torch.device('cpu') 
-        self.save_dir = os.path.join(opt.checkpoints_dir, opt.name)  # save all the checkpoints to save_dir
+        self.save_dir = os.path.join(checkpoints_dir, savedir)  # save all the checkpoints to save_dir
         self.loss_names = []
         self.model_names = []
         self.visual_names = []
@@ -97,7 +102,7 @@ class BaseModel(ABC):
         if self.isTrain:
             self.schedulers = [networks.get_scheduler(optimizer, opt) for optimizer in self.optimizers]
         
-        if not self.isTrain or opt.continue_train:
+        if not self.isTrain or self.continue_train:
             load_suffix = opt.epoch
             self.load_networks(load_suffix)
  
@@ -105,7 +110,7 @@ class BaseModel(ABC):
         # self.print_networks(opt.verbose)
 
     def parallelize(self, convert_sync_batchnorm=True):
-        if not self.opt.use_ddp:
+        if not self.use_ddp:
             for name in self.parallel_names:
                 if isinstance(name, str):
                     module = getattr(self, name)
@@ -127,8 +132,8 @@ class BaseModel(ABC):
                     setattr(self, name, module.to(self.device))
             
         # put state_dict of optimizer to gpu device
-        if self.opt.phase != 'test':
-            if self.opt.continue_train:
+        if self.phase != 'test':
+            if self.continue_train:
                 for optim in self.optimizers:
                     for state in optim.state.values():
                         for k, v in state.items():
@@ -173,7 +178,7 @@ class BaseModel(ABC):
     def update_learning_rate(self):
         """Update learning rates for all the networks; called at the end of every epoch"""
         for scheduler in self.schedulers:
-            if self.opt.lr_policy == 'plateau':
+            if self.lr_policy == 'plateau':
                 scheduler.step(self.metric)
             else:
                 scheduler.step()
@@ -247,8 +252,8 @@ class BaseModel(ABC):
         Parameters:
             epoch (int) -- current epoch; used in the file name '%s_net_%s.pth' % (epoch, name)
         """
-        if self.opt.isTrain and self.opt.pretrained_name is not None:
-            load_dir = os.path.join(self.opt.checkpoints_dir, self.opt.pretrained_name)
+        if self.isTrain and self.pretrained_name is not None:
+            load_dir = os.path.join(self.checkpoints_dir, self.pretrained_name)
         else:
             load_dir = self.save_dir    
         load_filename = 'epoch_%s.pth' % (epoch)
@@ -266,8 +271,8 @@ class BaseModel(ABC):
         lr = self.optimizers[0].param_groups[0]['lr']
         print('learning rate = %.7f' % lr)
         
-        if self.opt.phase != 'test':
-            if self.opt.continue_train:
+        if self.phase != 'test':
+            if self.continue_train:
                 print('loading the optim from %s' % load_path)
                 for i, optim in enumerate(self.optimizers):
                     optim.load_state_dict(state_dict['opt_%02d'%i])
@@ -279,7 +284,7 @@ class BaseModel(ABC):
                 except:
                     print('Failed to load schedulers, set schedulers according to epoch count manually')
                     for i, sched in enumerate(self.schedulers):
-                        sched.last_epoch = self.opt.epoch_count - 1
+                        sched.last_epoch = self.epoch_count - 1
                     
 
             
