@@ -9,3 +9,4 @@ click
 psutil
 scipy
 scikit-image
+git+https://github.com/NVlabs/nvdiffrast.git
