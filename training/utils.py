@@ -7,6 +7,7 @@ from torch_utils.ops import conv2d_resample
 from torch_utils.ops import upfirdn2d
 from torch_utils.ops import bias_act
 from torch_utils.ops import fma
+import torch.nn.functional as F
 
 def make_kernel(k):
     k = torch.tensor(k, dtype=torch.float32)
@@ -35,3 +36,8 @@ class Blur(nn.Module):
         out = upfirdn2d(input, self.kernel, pad=self.pad)
 
         return out
+
+def resize_img(img, size):
+    img = img.permute(0, 3, 1, 2)
+    img = F.interpolate(img, size=(size, size)).permute(0, 2, 3, 1)
+    return img

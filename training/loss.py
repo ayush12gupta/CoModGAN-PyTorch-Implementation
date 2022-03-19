@@ -16,6 +16,7 @@ from torch_utils import misc
 from torch_utils.ops import conv2d_gradfix
 from pytorch3d.structures import Meshes
 from pytorch3d.renderer import Textures
+from .utils import resize_img
 os.environ['TORCH_HOME'] = '/shared/storage/cs/staffstore/ag2157/pretrained/'
 
 #----------------------------------------------------------------------------
@@ -154,7 +155,6 @@ class StyleGAN2Loss(Loss):
         self.pl_weight = pl_weight
         self.vgg_loss = Vgg16() #VGGPerceptualLoss()
         self.pl_mean = torch.zeros([], device=device)
-        self.transf = T.Resize(224)
 
     def run_G(self, z, c, img, mask, sync):
         with misc.ddp_sync(self.G_mapping, sync):
@@ -177,11 +177,12 @@ class StyleGAN2Loss(Loss):
     
     def gen_img(self, img, texture):
         n_b = img.size()[0]
-        imgen = self.transf(img)     # Resizing the image to 224x224 for the 3dmm encoder
+        imgen = resize_img(img, 224)     # Resizing the image to 224x224 for the 3dmm encoder
         shape = self.fitting(imgen)
         textures = Textures(verts_uvs=self.fitting.verts_uvs, faces_uvs=self.fitting.facemodel.face_buf.repeat(n_b, 1, 1), maps=texture)
         meshes = Meshes(shape, self.tri.repeat(n_b, 1, 1), textures)
         rendered_img = self.fitting.renderer(meshes)
+        rendered_img = resize_img(rendered_img, 512)   # Resizing back to 512x512 for computing losses
         return rendered_img[..., :3], rendered_img[..., 3:]
 
     def accumulate_gradients(self, phase, real_img, real_c, mask, gen_z, gen_c, ldmks, sync, gain):

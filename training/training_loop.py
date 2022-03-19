@@ -20,9 +20,9 @@ from torch_utils import misc
 from torch_utils import training_stats
 from torch_utils.ops import conv2d_gradfix
 from torch_utils.ops import grid_sample_gradfix
-from fitting.rendering_option import FittingOptions
+from fitting.facerecon_model import FaceReconModel
 
-from fitting import create_model
+# from fitting import create_model
 
 import legacy
 from metrics import metric_main
@@ -153,9 +153,7 @@ def training_loop(
     common_kwargs = dict(c_dim=training_set.label_dim, img_resolution=training_set.resolution, img_channels=training_set.num_channels)
     G = dnnlib.util.construct_class_by_name(**G_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
     D = dnnlib.util.construct_class_by_name(**D_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
-    fitting_opt = FittingOptions().parse()  
-    fitting = create_model(fitting_opt).requires_grad_(False) # subclass of torch.nn.Module
-    fitting.setup(fitting_opt)
+    fitting = FaceReconModel(savedir='facerecon')
     fitting.device = device
     G_ema = copy.deepcopy(G).eval()
 
