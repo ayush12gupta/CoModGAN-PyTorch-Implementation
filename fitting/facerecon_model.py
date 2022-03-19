@@ -70,7 +70,7 @@ class FaceReconModel(BaseModel):
     #         )
     #     return parser
 
-    def __init__(self, checkpoints_dir, pretrained_name, savedir):
+    def __init__(self, savedir, pretrained_name=None, checkpoints_dir='./checkpoints'):
         """Initialize this model class.
 
         Parameters:
@@ -80,7 +80,7 @@ class FaceReconModel(BaseModel):
         - (required) call the initialization function of BaseModel
         - define loss function, visualization images, model names, and optimizers
         """
-        BaseModel.__init__(self, savedir, checkpoints_dir='./checkpoints', pretrained_name=None)  # call the initialization method of BaseModel
+        BaseModel.__init__(self, savedir, checkpoints_dir, pretrained_name)  # call the initialization method of BaseModel
         
         self.visual_names = ['output_vis']
         self.model_names = ['net_recon']
