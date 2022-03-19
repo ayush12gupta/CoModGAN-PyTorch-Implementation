@@ -38,6 +38,6 @@ class Blur(nn.Module):
         return out
 
 def resize_img(img, size):
-    img = img.permute(0, 3, 1, 2)
-    img = F.interpolate(img, size=(size, size)).permute(0, 2, 3, 1)
+    # img = img.permute(0, 3, 1, 2)
+    img = F.interpolate(img, size=(size, size)) #.permute(0, 2, 3, 1)
     return img

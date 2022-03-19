@@ -63,7 +63,7 @@ def setup_snapshot_image_grid(training_set, random_seed=0):
             label_groups[label] = [indices[(i + gw) % len(indices)] for i in range(len(indices))]
 
     # Load data.
-    images, mask_images, labels = zip(*[training_set[i] for i in grid_indices])
+    images, mask_images, ldmks, labels = zip(*[training_set[i] for i in grid_indices])
     return (gw, gh), np.stack(images), np.stack(mask_images), np.stack(labels)
 
 #----------------------------------------------------------------------------
