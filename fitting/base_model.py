@@ -237,7 +237,7 @@ class BaseModel(ABC):
         else:
             self.__patch_instance_norm_state_dict(state_dict, getattr(module, key), keys, i + 1)
 
-    def load_networks(self, epoch):
+    def load_networks(self):
         """Load all the networks from the disk.
 
         Parameters:
@@ -247,7 +247,7 @@ class BaseModel(ABC):
             load_dir = os.path.join(self.checkpoints_dir, self.pretrained_name)
         else:
             load_dir = self.save_dir    
-        load_filename = 'epoch_%s.pth' % (epoch)
+        load_filename = 'epoch_latest.pth' #% (epoch)
         load_path = os.path.join(load_dir, load_filename)
         state_dict = torch.load(load_path, map_location=self.device)
         print('loading the model from %s' % load_path)
@@ -259,8 +259,8 @@ class BaseModel(ABC):
                     net = net.module
                 net.load_state_dict(state_dict[name])
         
-        lr = self.optimizers[0].param_groups[0]['lr']
-        print('learning rate = %.7f' % lr)
+        # lr = self.optimizers[0].param_groups[0]['lr']
+        # print('learning rate = %.7f' % lr)
         
         if self.phase != 'test':
             if self.continue_train:

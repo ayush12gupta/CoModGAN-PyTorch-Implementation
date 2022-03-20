@@ -155,6 +155,7 @@ def training_loop(
     D = dnnlib.util.construct_class_by_name(**D_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
     fitting = FaceReconModel(savedir='facerecon')
     fitting.device = device
+    fitting.load_networks()
     G_ema = copy.deepcopy(G).eval()
 
     # Resume from existing pickle.

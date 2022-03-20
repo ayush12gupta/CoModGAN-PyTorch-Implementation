@@ -180,7 +180,7 @@ class StyleGAN2Loss(Loss):
         imgen = resize_img(img, 224)     # Resizing the image to 224x224 for the 3dmm encoder
         shape = self.fitting.forward(imgen)
         textures = Textures(verts_uvs=self.fitting.facemodel.verts_uvs.repeat(n_b, 1, 1), faces_uvs=self.fitting.facemodel.face_buf.repeat(n_b, 1, 1), maps=texture)
-        meshes = Meshes(shape, self.tri.repeat(n_b, 1, 1), textures)
+        meshes = Meshes(shape, self.fitting.facemodel.face_buf.repeat(n_b, 1, 1), textures)
         rendered_img = self.fitting.renderer(meshes)
         rendered_img = resize_img(rendered_img, 512)   # Resizing back to 512x512 for computing losses
         return rendered_img[..., :3], rendered_img[..., 3:]
