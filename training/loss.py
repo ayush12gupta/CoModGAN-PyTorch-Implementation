@@ -179,11 +179,12 @@ class StyleGAN2Loss(Loss):
         n_b = img.size()[0]
         imgen = resize_img(img, 224)     # Resizing the image to 224x224 for the 3dmm encoder
         shape = self.fitting.forward(imgen)
+        texture = texture.permute(0, 2, 3, 1)
         textures = Textures(verts_uvs=self.fitting.facemodel.verts_uvs.repeat(n_b, 1, 1), faces_uvs=self.fitting.facemodel.face_buf.repeat(n_b, 1, 1), maps=texture)
         meshes = Meshes(shape, self.fitting.facemodel.face_buf.repeat(n_b, 1, 1), textures)
-        rendered_img = self.fitting.renderer(meshes)
+        rendered_img = self.fitting.renderer(meshes).permute(0, 3, 1, 2)
         rendered_img = resize_img(rendered_img, 512)   # Resizing back to 512x512 for computing losses
-        return rendered_img[..., :3], rendered_img[..., 3:]
+        return rendered_img[..., :3, :, :], rendered_img[..., 3:, :, :]
 
     def accumulate_gradients(self, phase, real_img, real_c, mask, gen_z, gen_c, ldmks, sync, gain):
         assert phase in ['Gmain', 'Greg', 'Gboth', 'Dmain', 'Dreg', 'Dboth']
