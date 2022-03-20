@@ -96,12 +96,12 @@ class FaceReconModel(BaseModel):
         self.net_recon = networks.define_net_recon(
             net_recon='resnet50', use_last_fc=False, init_path=init_path
         )
-
+        self.net_recon.to(self.device)
         self.facemodel = ParametricFaceModel(
             bfm_folder=bfm_folder, camera_distance=10., focal=1015., center=112.,
             is_train=self.isTrain, default_name=bfm_model
         )
-        
+        self.facemodel.to(self.device)
         # fov = 2 * np.arctan(112. / 1015.) * 180 / np.pi
         self.renderer = self.facemodel.renderer
         # MeshRenderer(

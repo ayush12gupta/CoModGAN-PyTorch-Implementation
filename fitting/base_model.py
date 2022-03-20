@@ -40,7 +40,7 @@ class BaseModel(ABC):
         self.continue_train = True
         self.phase = 'test'
         self.use_dpp = True
-        self.device = torch.device('cpu') 
+        self.device = torch.device('cuda') 
         self.save_dir = os.path.join(checkpoints_dir, savedir)  # save all the checkpoints to save_dir
         self.loss_names = []
         self.model_names = []
