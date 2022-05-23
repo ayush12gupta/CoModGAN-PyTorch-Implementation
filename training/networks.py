@@ -101,6 +101,8 @@ class ModulatedConv2d(nn.Module):
             x = x.add_(noise)
         return x
 
+
+
 #----------------------------------------------------------------------------
 
 @persistence.persistent_class
@@ -135,133 +137,6 @@ class FullyConnectedLayer(torch.nn.Module):
             x = x.matmul(w.t())
             x = bias_act.bias_act(x, b, act=self.activation)
         return x
-
-#----------------------------------------------------------------------------
-
-# class ModulatedConv2d(nn.Module):
-#     def __init__(
-#         self,
-#         in_channel,
-#         out_channel,
-#         kernel_size,
-#         style_dim,
-#         demodulate=True,
-#         up=1,
-#         down=1,
-#         padding=0,
-#         fused=True,
-#     ):
-#         super().__init__()
-
-#         self.eps = 1e-8
-#         self.kernel_size = kernel_size
-#         self.in_channel = in_channel
-#         self.out_channel = out_channel
-#         # self.up = up
-#         # self.down = down
-#         # self.padding = padding
-
-#         fan_in = in_channel * kernel_size ** 2
-#         self.scale = 1 / math.sqrt(fan_in)
-#         self.padding = kernel_size // 2
-
-#         # self.weight = nn.Parameter(
-#         #     torch.randn(1, out_channel, in_channel, kernel_size, kernel_size)
-#         # )
-
-#         self.modulation = FullyConnectedLayer(style_dim, in_channel, bias_init=1)
-
-#         self.demodulate = demodulate
-#         self.fused = fused
-
-#     def __repr__(self):
-#         return (
-#             f"{self.__class__.__name__}({self.in_channel}, {self.out_channel}, {self.kernel_size}, "
-#             f"upsample={self.upsample}, downsample={self.downsample})"
-#         )
-
-#     def forward(self, input, weight, style, noise=None, resample_filter=None, flip_weight=True):
-#         batch, in_channel, height, width = input.shape
-
-#         if not self.fused:
-#             weight = self.scale * self.weight.squeeze(0)
-#             style = self.modulation(style)
-
-#             if self.demodulate:
-#                 w = weight.unsqueeze(0) * style.view(batch, 1, in_channel, 1, 1)
-#                 dcoefs = (w.square().sum((2, 3, 4)) + 1e-8).rsqrt()
-
-#             input = input * style.reshape(batch, in_channel, 1, 1)
-#             x = conv2d_resample.conv2d_resample(x=input, w=weight.to(input.dtype), f=resample_filter, up=self.up, down=self.down, padding=self.padding, flip_weight=flip_weight)
-#             # if self.upsample:
-#             #     weight = weight.transpose(0, 1)
-#             #     out = conv2d_gradfix.conv_transpose2d(
-#             #         input, weight, padding=0, stride=2
-#             #     )
-#             #     out = self.blur(out)
-
-#             # elif self.downsample:
-#             #     input = self.blur(input)
-#             #     out = conv2d_gradfix.conv2d(input, weight, padding=0, stride=2)
-
-#             # else:
-#             #     out = conv2d_gradfix.conv2d(input, weight, padding=self.padding)
-
-#             if self.demodulate:
-#                 out = out * dcoefs.view(batch, -1, 1, 1)
-            
-#             if noise is not None:
-#                 out = out.add_(noise)
-#             return out
-
-#         style = self.modulation(style).view(batch, 1, in_channel, 1, 1)
-#         weight = self.scale * self.weight * style
-
-#         if self.demodulate:
-#             demod = torch.rsqrt(weight.pow(2).sum([2, 3, 4]) + 1e-8)
-#             weight = weight * demod.view(batch, self.out_channel, 1, 1, 1)
-
-#         weight = weight.view(
-#             batch * self.out_channel, in_channel, self.kernel_size, self.kernel_size
-#         )
-
-#         if self.upsample:
-#             input = input.view(1, batch * in_channel, height, width)
-#             weight = weight.view(
-#                 batch, self.out_channel, in_channel, self.kernel_size, self.kernel_size
-#             )
-#             weight = weight.transpose(1, 2).reshape(
-#                 batch * in_channel, self.out_channel, self.kernel_size, self.kernel_size
-#             )
-#             out = conv2d_gradfix.conv_transpose2d(
-#                 input, weight, padding=0, stride=2, groups=batch
-#             )
-#             _, _, height, width = out.shape
-#             out = out.view(batch, self.out_channel, height, width)
-#             out = self.blur(out)
-
-#         elif self.downsample:
-#             input = self.blur(input)
-#             _, _, height, width = input.shape
-#             input = input.view(1, batch * in_channel, height, width)
-#             out = conv2d_gradfix.conv2d(
-#                 input, weight, padding=0, stride=2, groups=batch
-#             )
-#             _, _, height, width = out.shape
-#             out = out.view(batch, self.out_channel, height, width)
-
-#         else:
-#             input = input.view(1, batch * in_channel, height, width)
-#             out = conv2d_gradfix.conv2d(
-#                 input, weight, padding=self.padding, groups=batch
-#             )
-#             _, _, height, width = out.shape
-#             out = out.view(batch, self.out_channel, height, width)
-
-#         if noise is not None:
-#             out = out.add_(noise)
-
-#         return out
 
 #----------------------------------------------------------------------------
 
@@ -669,7 +544,7 @@ class SynthesisNetwork(torch.nn.Module):
             out_channels = channels_dict[res]
             use_fp16 = (res >= fp16_resolution)
             is_last = (res == self.img_resolution)
-            if res<4:  # With cross connections
+            if res<128:  # With cross connections
                 block = SynthesisBlock(in_channels, out_channels, w_dim=w_dim, resolution=res,
                     img_channels=img_channels, is_last=is_last, use_fp16=use_fp16, **block_kwargs)
             else: 

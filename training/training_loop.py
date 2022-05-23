@@ -271,8 +271,9 @@ def training_loop(
     while True:
         # Fetch training data.
         with torch.autograd.profiler.record_function('data_fetch'):
-            phase_real_img, phase_mask, phase_ldmks, phase_real_c = next(training_set_iterator)
+            phase_real_img, phase_mask, phase_txtr_img, phase_ldmks, phase_real_c = next(training_set_iterator)
             phase_real_img = (phase_real_img.to(device).to(torch.float32) / 127.5 - 1).split(batch_gpu)
+            phase_txtr_img = (phase_txtr_img.to(device).to(torch.float32) / 127.5 - 1).split(batch_gpu)
             phase_ldmks = phase_ldmks.to(device).to(torch.float32).split(batch_gpu)
             # phase_image = (phase_image.to(device).to(torch.float32) / 127.5 - 1).split(batch_gpu)
             phase_masks = (phase_mask.to(device).to(torch.float32) / 255.).split(batch_gpu)
@@ -295,10 +296,10 @@ def training_loop(
             phase.module.requires_grad_(True)
 
             # Accumulate gradients over multiple rounds.
-            for round_idx, (real_img, real_c, gen_z, gen_c, mask, ldmks) in enumerate(zip(phase_real_img, phase_real_c, phase_gen_z, phase_gen_c, phase_masks, phase_ldmks)):
+            for round_idx, (real_img, real_c, gen_z, gen_c, mask, ldmks, txtr_img) in enumerate(zip(phase_real_img, phase_real_c, phase_gen_z, phase_gen_c, phase_masks, phase_ldmks, phase_txtr_img)):
                 sync = (round_idx == batch_size // (batch_gpu * num_gpus) - 1)
                 gain = phase.interval
-                loss_l1, loss_vgg, loss_gmain, loss_dgen, loss_dreal, loss_sym = loss.accumulate_gradients(phase=phase.name, real_img=real_img, real_c=real_c, mask=mask, gen_z=gen_z, gen_c=gen_c, ldmks=ldmks, sync=sync, gain=gain)
+                loss_l1, loss_vgg, loss_gmain, loss_dgen, loss_dreal, loss_sym = loss.accumulate_gradients(phase=phase.name, real_img=real_img, txtr_img=txtr_img, real_c=real_c, mask=mask, gen_z=gen_z, gen_c=gen_c, ldmks=ldmks, sync=sync, gain=gain)
                 l1_Loss += loss_l1.cpu()
                 vggLoss += loss_vgg.cpu()
                 drealLoss += loss_dreal.cpu()

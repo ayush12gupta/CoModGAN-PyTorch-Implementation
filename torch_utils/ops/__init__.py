@@ -7,3 +7,5 @@
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 # empty
+from .fused_act import FusedLeakyReLU, fused_leaky_relu
+from .upfirdn2d import upfirdn2d

@@ -72,11 +72,17 @@ class Dataset(torch.utils.data.Dataset):
 
     def _load_raw_image(self, raw_idx): # to be overridden by subclass
         raise NotImplementedError
+
+    def _load_3dmm_map(self, raw_idx): # to be overridden by subclass
+        raise NotImplementedError
     
     def _load_mask_image(self, raw_idx): # to be overridden by subclass
         raise NotImplementedError
 
     def _load_raw_labels(self): # to be overridden by subclass
+        raise NotImplementedError
+
+    def _load_raw_ldmks(self): # to be overridden by subclass
         raise NotImplementedError
 
     def __getstate__(self):
@@ -93,6 +99,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         raw_image = self._load_raw_image(self._raw_idx[idx])
+        txtr_image = self._load_3dmm_map(self._raw_idx[idx])
         raw_ldmks = self._load_raw_ldmks(self._raw_idx[idx])
         if self.random_mask:
             mask_image = self.mask_generator(raw_image, iter_i=self.iter_i)*255.
@@ -102,15 +109,18 @@ class Dataset(torch.utils.data.Dataset):
         mask_image = np.uint8(mask_image)
         assert isinstance(raw_image, np.ndarray)
         assert list(raw_image.shape) == self.image_shape
+        assert list(txtr_image.shape) == self.image_shape
         # assert list(mask_image.shape) == self.image_shape
         assert raw_image.dtype == np.uint8
+        assert txtr_image.dtype == np.uint8
         assert mask_image.dtype == np.uint8
         if self._xflip[idx]:
             assert raw_image.ndim == 3 # CHW
             raw_image = raw_image[:, :, ::-1]
+            txtr_image = txtr_image[:, :, ::-1]
             mask_image = mask_image[:, :, ::-1]
         self.iter_i += 1
-        return raw_image.copy(), mask_image.copy(), raw_ldmks.copy(), self.get_label(idx)
+        return raw_image.copy(), mask_image.copy(), txtr_image.copy(), raw_ldmks.copy(), self.get_label(idx)
 
     def get_label(self, idx):
         label = self._get_raw_labels()[self._raw_idx[idx]]
@@ -176,6 +186,7 @@ class ImageFolderDataset(Dataset):
         path,                   # Path to directory or zip.
         mask_path,
         ldmks_path,
+        txtr_path,
         resolution      = None, # Ensure specific resolution, None = highest available.
         **super_kwargs,         # Additional arguments for the Dataset base class.
     ):
@@ -183,6 +194,7 @@ class ImageFolderDataset(Dataset):
         self._mask_path = mask_path
         self._ldmks_path = ldmks_path
         self._zipfile = None
+        self._3dmm_path = txtr_path
 
         if os.path.isdir(self._path):
             self._type = 'dir'
@@ -197,6 +209,11 @@ class ImageFolderDataset(Dataset):
         PIL.Image.init()
         self._image_fnames = sorted(fname for fname in self._all_fnames if self._file_ext(fname) in PIL.Image.EXTENSION)
         if len(self._image_fnames) == 0:
+            raise IOError('No image files found in the specified path')
+
+        self._3dmms_flist = {os.path.relpath(os.path.join(root, fname), start=self._3dmm_path) for root, _dirs, files in os.walk(self._3dmm_path) for fname in files}
+        self._3dmms_fnames = sorted(fname for fname in self._3dmms_flist if self._file_ext(fname) in PIL.Image.EXTENSION)
+        if len(self._3dmms_fnames) == 0:
             raise IOError('No image files found in the specified path')
 
         name = os.path.splitext(os.path.basename(self._path))[0]
@@ -242,6 +259,18 @@ class ImageFolderDataset(Dataset):
 
     def _load_raw_image(self, raw_idx):
         fname = self._image_fnames[raw_idx]
+        with self._open_file(fname, 'img') as f:
+            if pyspng is not None and self._file_ext(fname) == '.png':
+                image = pyspng.load(f.read())
+            else:
+                image = np.array(PIL.Image.open(f))
+        if image.ndim == 2:
+            image = image[:, :, np.newaxis] # HW => HWC
+        image = image.transpose(2, 0, 1) # HWC => CHW
+        return image
+
+    def _load_3dmm_map(self, raw_idx):
+        fname = self._3dmms_fnames[raw_idx]
         with self._open_file(fname, 'img') as f:
             if pyspng is not None and self._file_ext(fname) == '.png':
                 image = pyspng.load(f.read())
