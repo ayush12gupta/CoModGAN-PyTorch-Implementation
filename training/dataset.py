@@ -288,7 +288,7 @@ class ImageFolderDataset(Dataset):
         return ldmks
 
     def _load_mask_image(self, raw_idx):
-        fname = self._image_fnames[raw_idx]
+        fname = self._3dmms_fnames[raw_idx]
         with self._open_file(fname, 'mask') as f:
             if pyspng is not None and self._file_ext(fname) == '.png':
                 image = pyspng.load(f.read())
