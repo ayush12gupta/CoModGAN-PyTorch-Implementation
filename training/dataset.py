@@ -108,7 +108,7 @@ class Dataset(torch.utils.data.Dataset):
             mask_image = self._load_mask_image(self._raw_idx[mask_idx])
         mask_image = np.uint8(mask_image)
         assert isinstance(raw_image, np.ndarray)
-        assert list(raw_image.shape) == self.image_shape
+        # assert list(_image.shape) == self.image_shape
         assert list(txtr_image.shape) == self.image_shape
         # assert list(mask_image.shape) == self.image_shape
         assert raw_image.dtype == np.uint8
@@ -239,10 +239,14 @@ class ImageFolderDataset(Dataset):
         if self._type == 'dir':
             if types=='mask':
                 return open(os.path.join(self._mask_path, fname), 'rb')    
+            elif types=="3dmm":
+                return open(os.path.join(self._3dmm_path, fname), 'rb')
             return open(os.path.join(self._path, fname), 'rb')
         if self._type == 'zip': 
             if types=='mask':
                  return zipfile.ZipFile(self._mask_path).open(fname, 'r')
+            elif types=="3dmm":
+                 return zipfile.ZipFile(self._3dmm_path).open(fname, 'r')
             return zipfile.ZipFile(self._path).open(fname, 'r')
             # return self._get_zipfile(types=types).open(fname, 'r')
         return None
@@ -271,7 +275,7 @@ class ImageFolderDataset(Dataset):
 
     def _load_3dmm_map(self, raw_idx):
         fname = self._3dmms_fnames[raw_idx]
-        with self._open_file(fname, 'img') as f:
+        with self._open_file(fname, '3dmm') as f:
             if pyspng is not None and self._file_ext(fname) == '.png':
                 image = pyspng.load(f.read())
             else:

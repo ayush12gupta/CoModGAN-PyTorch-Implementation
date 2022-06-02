@@ -63,8 +63,8 @@ def setup_snapshot_image_grid(training_set, random_seed=0):
             label_groups[label] = [indices[(i + gw) % len(indices)] for i in range(len(indices))]
 
     # Load data.
-    images, mask_images, ldmks, labels = zip(*[training_set[i] for i in grid_indices])
-    return (gw, gh), np.stack(images), np.stack(mask_images), np.stack(labels)
+    images, mask_images, txtr, ldmks, labels = zip(*[training_set[i] for i in grid_indices])
+    return (gw, gh), np.stack(images), np.stack(txtr), np.stack(mask_images), np.stack(labels)
 
 #----------------------------------------------------------------------------
 
@@ -229,14 +229,15 @@ def training_loop(
     grid_c = None
     if rank == 0:
         print('Exporting sample images...')
-        grid_size, images, mask_images, labels = setup_snapshot_image_grid(training_set=training_set)
+        grid_size, images, txtr_images, mask_images, labels = setup_snapshot_image_grid(training_set=training_set)
         save_image_grid(images, os.path.join(run_dir, 'reals.png'), drange=[0,255], grid_size=grid_size)
         save_image_grid(images*(mask_images/255.), os.path.join(run_dir, 'real_masked_init.png'), drange=[0,255], grid_size=grid_size)
         grid_z = torch.randn([labels.shape[0], G.z_dim], device=device).split(batch_gpu)
         grid_c = torch.from_numpy(labels).to(device).split(batch_gpu)
         grid_images = (torch.from_numpy(images).to(torch.float32) / 127.5 - 1).to(device).split(batch_gpu)
+        grid_txtr_images = (torch.from_numpy(txtr_images).to(torch.float32) / 127.5 - 1).to(device).split(batch_gpu)
         grid_mask_images = (torch.from_numpy(mask_images).to(torch.float32) / 255.).to(device).split(batch_gpu)
-        out_images = torch.cat([G_ema(z=z, c=c, image_in=image, mask_in=mask_image, noise_mode='const').cpu() for z, c, image, mask_image in zip(grid_z, grid_c, grid_images, grid_mask_images)]).numpy()
+        out_images = torch.cat([G_ema(z=z, c=c, image_in=txtr_image, mask_in=mask_image, noise_mode='const').cpu() for z, c, image, txtr_image, mask_image in zip(grid_z, grid_c, grid_images, grid_txtr_images, grid_mask_images)]).numpy()
         save_image_grid(out_images, os.path.join(run_dir, 'fakes_init.png'), drange=[-1,1], grid_size=grid_size)
 
     # Initialize logs.
