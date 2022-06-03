@@ -196,7 +196,7 @@ class StyleGAN2Loss(Loss):
         
         l1_weight = 70
         sym_weight = 70
-        loss_l1 = loss_vgg = loss_Dgen = loss_Gmain = loss_Dreal = loss_sym = None
+        loss_l1 = loss_l1_rend = loss_vgg = loss_Dgen = loss_Gmain = loss_Dreal = loss_sym = None
         if do_imageq:
             with torch.autograd.profiler.record_function('Gmain_forward'):
                 gen_txtr, _gen_ws = self.run_G(gen_z, gen_c, txtr_img, mask, sync=(sync and not do_Gpl)) # May get synced by Gpl.
@@ -210,7 +210,7 @@ class StyleGAN2Loss(Loss):
                 loss_vgg_real = self.vgg_loss(rend_img*rend_mask, real_img*rend_mask)
                 loss_vgg = (loss_vgg_real+loss_vgg_txtr)*0.05
                 loss_l1_rend = abs(torch.nn.functional.l1_loss(rend_img*rend_mask, real_img*rend_mask))*l1_weight
-                training_stats.report('Loss/G/L1_loss', loss_l1)
+                training_stats.report('Loss/G/L1_loss', loss_l1_rend)
                 # training_stats.report('Loss/G/Perceptual', loss_vgg)
             with torch.autograd.profiler.record_function('Gmain_backward'):
                 if loss_vgg is None:
