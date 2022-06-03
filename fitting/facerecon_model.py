@@ -70,7 +70,7 @@ class FaceReconModel(BaseModel):
     #         )
     #     return parser
 
-    def __init__(self, savedir, pretrained_name=None, checkpoints_dir='./checkpoints'):
+    def __init__(self, savedir, model_dir, pretrained_name=None, checkpoints_dir='./checkpoints'):
         """Initialize this model class.
 
         Parameters:
@@ -87,7 +87,7 @@ class FaceReconModel(BaseModel):
         self.parallel_names = self.model_names + ['renderer']
 
         #----------- Config --------------
-        init_path = 'checkpoints/init_model/resnet50-0676ba61.pth'
+        init_path = model_dir + '/checkpoints/init_model/resnet50-0676ba61.pth'
         bfm_folder = 'BFM'
         bfm_model = '4DFM_model_info.mat'
         # net_recog_path = 'checkpoints/recog_model/ms1mv3_arcface_r50_fp16/backbone.pth'
