@@ -88,7 +88,7 @@ class FaceReconModel(BaseModel):
 
         #----------- Config --------------
         init_path = model_dir + '/checkpoints/init_model/resnet50-0676ba61.pth'
-        bfm_folder = 'BFM'
+        bfm_folder = model_dir + '/BFM'
         bfm_model = '4DFM_model_info.mat'
         # net_recog_path = 'checkpoints/recog_model/ms1mv3_arcface_r50_fp16/backbone.pth'
         #---------------------------------
