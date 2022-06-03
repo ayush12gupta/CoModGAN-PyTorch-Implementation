@@ -98,7 +98,7 @@ class FaceReconModel(BaseModel):
             net_recon='resnet50', use_last_fc=False, init_path=init_path
         )
         self.net_recon.to(self.device)
-        self.facemodel = ParametricFaceModel(
+        self.facemodel = ParametricFaceModel(device=self.device,
             bfm_folder=bfm_folder, camera_distance=10., focal=1015., center=112.,
             is_train=self.isTrain, default_name=bfm_model
         )

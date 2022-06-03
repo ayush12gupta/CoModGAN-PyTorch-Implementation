@@ -53,6 +53,7 @@ class SH:
 
 class ParametricFaceModel:
     def __init__(self, 
+                device,
                 bfm_folder='./BFM', 
                 recenter=True,
                 camera_distance=10.,
@@ -97,7 +98,7 @@ class ParametricFaceModel:
             self.mean_shape = mean_shape.reshape([-1, 1])
 
         self.persc_proj = perspective_projection(focal, center)
-        self.device = 'cuda'
+        self.device = device
         self.camera_distance = camera_distance
         self.camera_pos = self._get_camera_pose()
         self.reverse_z = self._get_reverse_z()
