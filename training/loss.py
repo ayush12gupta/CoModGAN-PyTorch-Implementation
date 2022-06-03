@@ -208,15 +208,15 @@ class StyleGAN2Loss(Loss):
                 # training_stats.report('Loss/signs/fake', gen_logits.sign())
                 rend_img, rend_mask = self.gen_img(real_img, gen_txtr)
                 loss_vgg_real = self.vgg_loss(rend_img*rend_mask, real_img*rend_mask)
-                loss_vgg = (loss_vgg_real+loss_vgg_txtr)*0.5
-                loss_l1 = abs(torch.nn.functional.l1_loss(rend_img*rend_mask, real_img*rend_mask))*l1_weight
+                loss_vgg = (loss_vgg_real+loss_vgg_txtr)*0.05
+                loss_l1_rend = abs(torch.nn.functional.l1_loss(rend_img*rend_mask, real_img*rend_mask))*l1_weight
                 training_stats.report('Loss/G/L1_loss', loss_l1)
                 # training_stats.report('Loss/G/Perceptual', loss_vgg)
             with torch.autograd.profiler.record_function('Gmain_backward'):
                 if loss_vgg is None:
-                    (loss_l1+loss_sym).mean().mul(gain).backward()
+                    (loss_l1_rend+loss_sym).mean().mul(gain).backward()
                 else:
-                    (loss_l1+loss_vgg+loss_sym).mean().mul(gain).backward()
+                    (loss_l1_rend+loss_vgg+loss_sym).mean().mul(gain).backward()
 
         # Gmain: Maximize logits for generated images.
         if do_Gmain:
@@ -231,7 +231,7 @@ class StyleGAN2Loss(Loss):
                 training_stats.report('Loss/G/loss', loss_Gmain)
                 training_stats.report('Loss/G/L1loss', loss_l1)
             with torch.autograd.profiler.record_function('Gmain_backward'):
-                (loss_Gmain + loss_l1*0).mean().mul(gain).backward()
+                (loss_Gmain + loss_l1).mean().mul(gain).backward()
 
         # Gpl: Apply path length regularization.
         if do_Gpl:
@@ -300,6 +300,8 @@ class StyleGAN2Loss(Loss):
 
         if loss_l1 is None:
             loss_l1 = torch.Tensor([0]).cuda()
+        if loss_l1_rend is None:
+            loss_l1_rend = torch.Tensor([0]).cuda()
         if loss_vgg is None:
             loss_vgg = torch.Tensor([0]).cuda()
         if loss_Gmain is None:
@@ -316,6 +318,6 @@ class StyleGAN2Loss(Loss):
         # print(loss_Dgen.mean())
         # print(loss_Dreal)
         # print(loss_Dreal.mean())
-        return loss_l1.mean(), loss_vgg.mean(), loss_Gmain.mean(), loss_Dgen.mean(), loss_Dreal.mean(), loss_sym.mean()
+        return loss_l1.mean(), loss_l1_rend.mean(), loss_vgg.mean(), loss_Gmain.mean(), loss_Dgen.mean(), loss_Dreal.mean(), loss_sym.mean()
 
 #----------------------------------------------------------------------------

@@ -268,7 +268,7 @@ def training_loop(
     if progress_fn is not None:
         progress_fn(0, total_kimg)
     
-    l1_Loss, vggLoss, drealLoss, gmainLoss, dgenLoss, symLoss = 0, 0, 0, 0, 0, 0
+    l1_Loss, l1_Loss_rend, vggLoss, drealLoss, gmainLoss, dgenLoss, symLoss = 0, 0, 0, 0, 0, 0, 0
     while True:
         # Fetch training data.
         with torch.autograd.profiler.record_function('data_fetch'):
@@ -300,8 +300,9 @@ def training_loop(
             for round_idx, (real_img, real_c, gen_z, gen_c, mask, ldmks, txtr_img) in enumerate(zip(phase_real_img, phase_real_c, phase_gen_z, phase_gen_c, phase_masks, phase_ldmks, phase_txtr_img)):
                 sync = (round_idx == batch_size // (batch_gpu * num_gpus) - 1)
                 gain = phase.interval
-                loss_l1, loss_vgg, loss_gmain, loss_dgen, loss_dreal, loss_sym = loss.accumulate_gradients(phase=phase.name, real_img=real_img, txtr_img=txtr_img, real_c=real_c, mask=mask, gen_z=gen_z, gen_c=gen_c, ldmks=ldmks, sync=sync, gain=gain)
+                loss_l1, loss_l1_rend, loss_vgg, loss_gmain, loss_dgen, loss_dreal, loss_sym = loss.accumulate_gradients(phase=phase.name, real_img=real_img, txtr_img=txtr_img, real_c=real_c, mask=mask, gen_z=gen_z, gen_c=gen_c, ldmks=ldmks, sync=sync, gain=gain)
                 l1_Loss += loss_l1.cpu()
+                l1_Loss_rend += loss_l1_rend.cpu()
                 vggLoss += loss_vgg.cpu()
                 drealLoss += loss_dreal.cpu()
                 gmainLoss += loss_gmain.cpu()
@@ -342,19 +343,20 @@ def training_loop(
         if cur_nimg%200==0:
             cnt = cur_nimg%1e3
             if cnt!=0:
-                log = "king: {cur_nimg}  L1 loss: {l1}  L1 Sym loss: {symloss}  Perceptual loss: {vgg}".format(cur_nimg=cur_nimg/1e3, l1=l1_Loss/cnt, symloss=symLoss/cnt, vgg=vggLoss/cnt)
+                log = "king: {cur_nimg}  L1 loss: {l1}  L1 loss Rend: {l1_rend}  L1 Sym loss: {symloss}  Perceptual loss: {vgg}".format(cur_nimg=cur_nimg/1e3, l1=l1_Loss/cnt, l1_rend=l1_Loss_rend/cnt, symloss=symLoss/cnt, vgg=vggLoss/cnt)
                 print(log)
 
         if cur_nimg%1e3==0:
             l1_Loss /= 1e3
+            l1_Loss_rend /= 1e3 
             vggLoss /= 1e3
             drealLoss /= 1e3
             gmainLoss /= 1e3
             dgenLoss /= 1e3
             symLoss /= 1e3
-            log = "king: {cur_nimg}  L1 loss: {l1} L1 Sym loss: {symloss}  Perceptual loss: {vgg}  G_main: {gmain}  D_gen: {dgen}  D_real: {dreal}".format(cur_nimg=cur_nimg/1e3, l1=l1_Loss, symloss=symLoss, vgg=vggLoss, gmain=gmainLoss, dgen=dgenLoss, dreal=drealLoss)
+            log = "king: {cur_nimg}  L1 loss: {l1}  L1 loss Rend: {l1_rend}  L1 Sym loss: {symloss}  Perceptual loss: {vgg}  G_main: {gmain}  D_gen: {dgen}  D_real: {dreal}".format(cur_nimg=cur_nimg/1e3, l1=l1_Loss, l1_rend=l1_Loss_rend, symloss=symLoss, vgg=vggLoss, gmain=gmainLoss, dgen=dgenLoss, dreal=drealLoss)
             print(log)
-            l1_Loss, vggLoss, drealLoss, gmainLoss, dgenLoss, symLoss = 0, 0, 0, 0, 0, 0
+            l1_Loss, l1_Loss_rend, vggLoss, drealLoss, gmainLoss, dgenLoss, symLoss = 0, 0, 0, 0, 0, 0, 0
 
         # Perform maintenance tasks once per tick.
         done = (cur_nimg >= total_kimg * 1000)
