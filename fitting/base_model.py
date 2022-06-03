@@ -19,7 +19,7 @@ class BaseModel(ABC):
         -- <modify_commandline_options>:    (optionally) add model-specific options and set default options.
     """
 
-    def __init__(self, savedir, checkpoints_dir, pretrained_name, isTrain=False):
+    def __init__(self, savedir, checkpoints_dir, pretrained_name, device, isTrain=False):
         """Initialize the BaseModel class.
 
         Parameters:
@@ -40,7 +40,8 @@ class BaseModel(ABC):
         self.continue_train = True
         self.phase = 'test'
         self.use_dpp = True
-        self.device = torch.device('cuda') 
+        self.device = device 
+        #torch.device('cuda') 
         self.save_dir = os.path.join(checkpoints_dir, savedir)  # save all the checkpoints to save_dir
         self.loss_names = []
         self.model_names = []
