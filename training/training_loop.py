@@ -153,8 +153,8 @@ def training_loop(
     common_kwargs = dict(c_dim=training_set.label_dim, img_resolution=training_set.resolution, img_channels=training_set.num_channels)
     G = dnnlib.util.construct_class_by_name(**G_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
     D = dnnlib.util.construct_class_by_name(**D_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
-    fitting = FaceReconModel(savedir='facerecon', model_dir='/shared/storage/cs/staffstore/ag2157/fitting_ckpt/')
-    fitting.device = device
+    fitting = FaceReconModel(savedir='facerecon', model_dir='/shared/storage/cs/staffstore/ag2157/fitting_ckpt/', device=device)
+    # fitting.device = device
     fitting.load_networks()
     G_ema = copy.deepcopy(G).eval()
 
