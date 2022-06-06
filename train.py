@@ -41,6 +41,7 @@ def setup_training_loop_kwargs(
     mask_data  = None,
     ldmks_data = None,
     txtr_data  = None,
+    real_txtr_data = None,
     random_mask= None,
     cond       = None, # Train conditional model based on dataset labels: <bool>, default = False
     subset     = None, # Train with only N images: <int>, default = all
@@ -109,7 +110,7 @@ def setup_training_loop_kwargs(
     assert data is not None
     # assert mask_data is not None
     assert isinstance(data, str)
-    args.training_set_kwargs = dnnlib.EasyDict(class_name='training.dataset.ImageFolderDataset', path=data, mask_path=mask_data, ldmks_path=ldmks_data, txtr_path=txtr_data, random_mask=random_mask, use_labels=True, max_size=None, xflip=False)
+    args.training_set_kwargs = dnnlib.EasyDict(class_name='training.dataset.ImageFolderDataset', path=data, mask_path=mask_data, ldmks_path=ldmks_data, txtr_path=txtr_data, real_txtr_data=real_txtr_data, random_mask=random_mask, use_labels=True, max_size=None, xflip=False)
     args.data_loader_kwargs = dnnlib.EasyDict(pin_memory=True, num_workers=3, prefetch_factor=2)
     try:
         training_set = dnnlib.util.construct_class_by_name(**args.training_set_kwargs) # subclass of training.dataset.Dataset

@@ -63,7 +63,7 @@ def setup_snapshot_image_grid(training_set, random_seed=0):
             label_groups[label] = [indices[(i + gw) % len(indices)] for i in range(len(indices))]
 
     # Load data.
-    images, mask_images, txtr, ldmks, labels = zip(*[training_set[i] for i in grid_indices])
+    images, mask_images, txtr, real_txtr, ldmks, labels = zip(*[training_set[i] for i in grid_indices])
     return (gw, gh), np.stack(images), np.stack(txtr), np.stack(mask_images), np.stack(labels)
 
 #----------------------------------------------------------------------------
@@ -229,9 +229,9 @@ def training_loop(
     grid_c = None
     if rank == 0:
         print('Exporting sample images...')
-        grid_size, images, txtr_images, mask_images, labels = setup_snapshot_image_grid(training_set=training_set)
+        grid_size, images, txtr_images, realtxtr_images, mask_images, labels = setup_snapshot_image_grid(training_set=training_set)
         save_image_grid(images, os.path.join(run_dir, 'reals.png'), drange=[0,255], grid_size=grid_size)
-        save_image_grid(images*(mask_images/255.), os.path.join(run_dir, 'real_masked_init.png'), drange=[0,255], grid_size=grid_size)
+        save_image_grid(txtr_images*(mask_images/255.), os.path.join(run_dir, 'real_masked_init.png'), drange=[0,255], grid_size=grid_size)
         grid_z = torch.randn([labels.shape[0], G.z_dim], device=device).split(batch_gpu)
         grid_c = torch.from_numpy(labels).to(device).split(batch_gpu)
         grid_images = (torch.from_numpy(images).to(torch.float32) / 127.5 - 1).to(device).split(batch_gpu)
@@ -272,9 +272,10 @@ def training_loop(
     while True:
         # Fetch training data.
         with torch.autograd.profiler.record_function('data_fetch'):
-            phase_real_img, phase_mask, phase_txtr_img, phase_ldmks, phase_real_c = next(training_set_iterator)
+            phase_real_img, phase_mask, phase_txtr_img, phase_realtxtr_img, phase_ldmks, phase_real_c = next(training_set_iterator)
             phase_real_img = (phase_real_img.to(device).to(torch.float32) / 127.5 - 1).split(batch_gpu)
             phase_txtr_img = (phase_txtr_img.to(device).to(torch.float32) / 127.5 - 1).split(batch_gpu)
+            phase_realtxtr_img = (phase_realtxtr_img.to(device).to(torch.float32) / 127.5 - 1).split(batch_gpu)
             phase_ldmks = phase_ldmks.to(device).to(torch.float32).split(batch_gpu)
             # phase_image = (phase_image.to(device).to(torch.float32) / 127.5 - 1).split(batch_gpu)
             phase_masks = (phase_mask.to(device).to(torch.float32) / 255.).split(batch_gpu)
@@ -297,10 +298,10 @@ def training_loop(
             phase.module.requires_grad_(True)
 
             # Accumulate gradients over multiple rounds.
-            for round_idx, (real_img, real_c, gen_z, gen_c, mask, ldmks, txtr_img) in enumerate(zip(phase_real_img, phase_real_c, phase_gen_z, phase_gen_c, phase_masks, phase_ldmks, phase_txtr_img)):
+            for round_idx, (real_img, real_c, gen_z, gen_c, mask, ldmks, txtr_img, realtxtr_img) in enumerate(zip(phase_real_img, phase_real_c, phase_gen_z, phase_gen_c, phase_masks, phase_ldmks, phase_txtr_img, phase_realtxtr_img)):
                 sync = (round_idx == batch_size // (batch_gpu * num_gpus) - 1)
                 gain = phase.interval
-                loss_l1, loss_l1_rend, loss_vgg, loss_gmain, loss_dgen, loss_dreal, loss_sym = loss.accumulate_gradients(phase=phase.name, real_img=real_img, txtr_img=txtr_img, real_c=real_c, mask=mask, gen_z=gen_z, gen_c=gen_c, ldmks=ldmks, sync=sync, gain=gain)
+                loss_l1, loss_l1_rend, loss_vgg, loss_gmain, loss_dgen, loss_dreal, loss_sym = loss.accumulate_gradients(phase=phase.name, real_img=real_img, txtr_img=txtr_img, real_txtr=realtxtr_img, real_c=real_c, mask=mask, gen_z=gen_z, gen_c=gen_c, ldmks=ldmks, sync=sync, gain=gain)
                 l1_Loss += loss_l1.cpu()
                 l1_Loss_rend += loss_l1_rend.cpu()
                 vggLoss += loss_vgg.cpu()

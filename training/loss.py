@@ -186,10 +186,10 @@ class StyleGAN2Loss(Loss):
         rendered_img = resize_img(rendered_img, 512)   # Resizing back to 512x512 for computing losses
         return rendered_img[..., :3, :, :], rendered_img[..., 3:, :, :]
 
-    def accumulate_gradients(self, phase, real_img, txtr_img, real_c, mask, gen_z, gen_c, ldmks, sync, gain):
+    def accumulate_gradients(self, phase, real_img, txtr_img, real_txtr, real_c, mask, gen_z, gen_c, ldmks, sync, gain):
         assert phase in ['Gmain', 'Greg', 'Gboth', 'Dmain', 'Dreg', 'Dboth']
         do_Gmain = (phase in ['Gmain', 'Gboth'])
-        do_imageq = (phase in ['Gmain', 'Gboth'])
+        do_imageq = False #(phase in ['Gmain', 'Gboth'])
         do_Dmain = (phase in ['Dmain', 'Dboth'])
         do_Gpl   = (phase in ['Greg', 'Gboth']) and (self.pl_weight != 0)
         do_Dr1   = (phase in ['Dreg', 'Dboth']) and (self.r1_gamma != 0)
@@ -202,8 +202,8 @@ class StyleGAN2Loss(Loss):
                 gen_txtr, _gen_ws = self.run_G(gen_z, gen_c, txtr_img, mask, sync=(sync and not do_Gpl)) # May get synced by Gpl.
                 gen_logits = self.run_D(gen_txtr, gen_c, sync=False)
                 loss_vgg_txtr = self.vgg_loss(txtr_img, gen_txtr)#*5
-                gen_img_mirr = torch.fliplr(gen_txtr)
-                loss_sym = abs(torch.nn.functional.l1_loss(gen_txtr, gen_img_mirr))*sym_weight
+                # gen_img_mirr = torch.fliplr(gen_txtr)
+                # loss_sym = abs(torch.nn.functional.l1_loss(gen_txtr, gen_img_mirr))*sym_weight
                 # training_stats.report('Loss/scores/fake', gen_logits)
                 # training_stats.report('Loss/signs/fake', gen_logits.sign())
                 rend_img, rend_mask = self.gen_img(real_img, gen_txtr)
@@ -214,9 +214,9 @@ class StyleGAN2Loss(Loss):
                 # training_stats.report('Loss/G/Perceptual', loss_vgg)
             with torch.autograd.profiler.record_function('Gmain_backward'):
                 if loss_vgg is None:
-                    (loss_l1_rend+loss_sym).mean().mul(gain).backward()
+                    (loss_l1_rend).mean().mul(gain).backward()
                 else:
-                    (loss_l1_rend+loss_vgg+loss_sym).mean().mul(gain).backward()
+                    (loss_l1_rend+loss_vgg).mean().mul(gain).backward()
 
         # Gmain: Maximize logits for generated images.
         if do_Gmain:
@@ -226,12 +226,13 @@ class StyleGAN2Loss(Loss):
                 training_stats.report('Loss/scores/fake', gen_logits)
                 training_stats.report('Loss/signs/fake', gen_logits.sign())
                 loss_Gmain = torch.nn.functional.softplus(-gen_logits) # -log(sigmoid(gen_logits))
-                rend_img, rend_mask = self.gen_img(real_img, gen_txtr)
-                loss_l1 = abs(torch.nn.functional.l1_loss(rend_img*rend_mask, real_img*rend_mask))*l1_weight
+                gen_txtr_mirr = torch.fliplr(gen_txtr)
+                loss_l1 = abs(torch.nn.functional.l1_loss(gen_txtr, real_txtr))*l1_weight
+                loss_sym = abs(torch.nn.functional.l1_loss(gen_txtr, gen_txtr_mirr))*sym_weight
                 training_stats.report('Loss/G/loss', loss_Gmain)
                 training_stats.report('Loss/G/L1loss', loss_l1)
             with torch.autograd.profiler.record_function('Gmain_backward'):
-                (loss_Gmain + loss_l1).mean().mul(gain).backward()
+                (loss_Gmain + loss_l1 + loss_sym).mean().mul(gain).backward()
 
         # Gpl: Apply path length regularization.
         if do_Gpl:

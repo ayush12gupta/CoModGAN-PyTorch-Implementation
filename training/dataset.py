@@ -100,6 +100,7 @@ class Dataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         raw_image = self._load_raw_image(self._raw_idx[idx])
         txtr_image = self._load_3dmm_map(self._raw_idx[idx])
+        real_txtr_image = self._load_real_3dmm_map(self._raw_idx[idx])
         raw_ldmks = self._load_raw_ldmks(self._raw_idx[idx])
         if self.random_mask:
             mask_image = self.mask_generator(raw_image, iter_i=self.iter_i)*255.
@@ -118,9 +119,10 @@ class Dataset(torch.utils.data.Dataset):
             assert raw_image.ndim == 3 # CHW
             raw_image = raw_image[:, :, ::-1]
             txtr_image = txtr_image[:, :, ::-1]
+            real_txtr_image = txtr_image[:, :, ::-1]
             mask_image = mask_image[:, :, ::-1]
         self.iter_i += 1
-        return raw_image.copy(), mask_image.copy(), txtr_image.copy(), raw_ldmks.copy(), self.get_label(idx)
+        return raw_image.copy(), mask_image.copy(), txtr_image.copy(), real_txtr_image.copy(), raw_ldmks.copy(), self.get_label(idx)
 
     def get_label(self, idx):
         label = self._get_raw_labels()[self._raw_idx[idx]]
@@ -187,6 +189,7 @@ class ImageFolderDataset(Dataset):
         mask_path,
         ldmks_path,
         txtr_path,
+        real_txtr_data,
         resolution      = None, # Ensure specific resolution, None = highest available.
         **super_kwargs,         # Additional arguments for the Dataset base class.
     ):
@@ -195,6 +198,7 @@ class ImageFolderDataset(Dataset):
         self._ldmks_path = ldmks_path
         self._zipfile = None
         self._3dmm_path = txtr_path
+        self._real_3dmm_path = real_txtr_data
 
         if os.path.isdir(self._path):
             self._type = 'dir'
@@ -241,6 +245,8 @@ class ImageFolderDataset(Dataset):
                 return open(os.path.join(self._mask_path, fname), 'rb')    
             elif types=="3dmm":
                 return open(os.path.join(self._3dmm_path, fname), 'rb')
+            elif types=="real_3dmm":
+                return open(os.path.join(self._real_3dmm_path, fname), 'rb')
             return open(os.path.join(self._path, fname), 'rb')
         if self._type == 'zip': 
             if types=='mask':
@@ -276,6 +282,18 @@ class ImageFolderDataset(Dataset):
     def _load_3dmm_map(self, raw_idx):
         fname = self._3dmms_fnames[raw_idx]
         with self._open_file(fname, '3dmm') as f:
+            if pyspng is not None and self._file_ext(fname) == '.png':
+                image = pyspng.load(f.read())
+            else:
+                image = np.array(PIL.Image.open(f))
+        if image.ndim == 2:
+            image = image[:, :, np.newaxis] # HW => HWC
+        image = image.transpose(2, 0, 1) # HWC => CHW
+        return image
+
+    def _load_real_3dmm_map(self, raw_idx):
+        fname = self._3dmms_fnames[raw_idx]
+        with self._open_file(fname, 'real_3dmm') as f:
             if pyspng is not None and self._file_ext(fname) == '.png':
                 image = pyspng.load(f.read())
             else:
