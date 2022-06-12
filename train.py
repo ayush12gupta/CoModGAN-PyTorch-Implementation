@@ -420,6 +420,7 @@ class CommaSeparatedList(click.ParamType):
 @click.option('--mask_data', help='Training mask data (directory or zip)', metavar='PATH', required=True)
 @click.option('--ldmks_data', help='Training mask data (directory or zip)', metavar='PATH', required=True)
 @click.option('--txtr_data', help='Training mask data (directory or zip)', metavar='PATH', required=True)
+@click.option('--real_txtr_data', help='Training mask data (directory or zip)', metavar='PATH', required=True)
 @click.option('--cond', help='Train conditional model based on dataset labels [default: false]', type=bool, metavar='BOOL')
 @click.option('--subset', help='Train with only N images [default: all]', type=int, metavar='INT')
 @click.option('--mirror', help='Enable dataset x-flips [default: false]', type=bool, metavar='BOOL')

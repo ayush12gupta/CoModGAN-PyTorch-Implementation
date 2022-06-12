@@ -75,6 +75,9 @@ class Dataset(torch.utils.data.Dataset):
 
     def _load_3dmm_map(self, raw_idx): # to be overridden by subclass
         raise NotImplementedError
+
+    def _load_real_3dmm_map(self, raw_idx): # to be overridden by subclass
+        raise NotImplementedError
     
     def _load_mask_image(self, raw_idx): # to be overridden by subclass
         raise NotImplementedError
