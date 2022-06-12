@@ -229,7 +229,7 @@ def training_loop(
     grid_c = None
     if rank == 0:
         print('Exporting sample images...')
-        grid_size, images, txtr_images, realtxtr_images, mask_images, labels = setup_snapshot_image_grid(training_set=training_set)
+        grid_size, images, txtr_images, mask_images, labels = setup_snapshot_image_grid(training_set=training_set)
         save_image_grid(images, os.path.join(run_dir, 'reals.png'), drange=[0,255], grid_size=grid_size)
         save_image_grid(txtr_images*(mask_images/255.), os.path.join(run_dir, 'real_masked_init.png'), drange=[0,255], grid_size=grid_size)
         grid_z = torch.randn([labels.shape[0], G.z_dim], device=device).split(batch_gpu)
