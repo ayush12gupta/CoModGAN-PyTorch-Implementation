@@ -2,6 +2,7 @@
 """
 
 import numpy as np
+import cv2, os
 import torch
 from .base_model import BaseModel
 from . import networks
@@ -105,6 +106,10 @@ class FaceReconModel(BaseModel):
         self.facemodel.to(self.device)
         # fov = 2 * np.arctan(112. / 1015.) * 180 / np.pi
         self.renderer = self.facemodel.renderer
+        self.mean_txtr = cv2.imread(os.path.join(bfm_folder, '4dfm_mean_with_uv.texture.png'))[:,:,::-1]
+        self.mean_txtr = torch.tensor(cv2.resize(self.mean_txtr, (512, 512)), dtype=torch.float32, 
+                              requires_grad=False, device=device).permute(2, 0, 1)
+        self.mean_txtr = ((self.mean_txtr/127.5)-1)
         # MeshRenderer(
         #     rasterize_fov=fov, znear=5., zfar=15., rasterize_size=int(2 * 112.)
         # )

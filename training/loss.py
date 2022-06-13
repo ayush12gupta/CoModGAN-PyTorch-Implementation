@@ -7,7 +7,7 @@
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 import numpy as np
-import os
+import os, cv2
 import torch
 import torchvision
 import torchvision.transforms as T
@@ -176,20 +176,26 @@ class StyleGAN2Loss(Loss):
         return logits
     
     def gen_img(self, img, texture):
+        device = img.get_device()
         n_b = img.size()[0]
-        imgen = resize_img(img, 224)     # Resizing the image to 224x224 for the 3dmm encoder
+        texture = resize_img(texture, 387, 312)     # Resizing the image to 224x224 for the 3dmm encoder
+        txt_imgen = self.fitting.mean_txtr
+        txt_imgen = torch.stack([txt_imgen]*n_b)
+        txt_imgen[:, :, :-125, 100:-100] = texture
+        imgen = resize_img(img, 224, 224)
         shape = self.fitting.forward(imgen)
-        texture = texture.permute(0, 2, 3, 1)
+        texture = txt_imgen.permute(0, 2, 3, 1)
         textures = Textures(verts_uvs=self.fitting.facemodel.verts_uvs.repeat(n_b, 1, 1), faces_uvs=self.fitting.facemodel.face_buf.repeat(n_b, 1, 1), maps=texture)
         meshes = Meshes(shape, self.fitting.facemodel.face_buf.repeat(n_b, 1, 1), textures)
         rendered_img = self.fitting.renderer(meshes).permute(0, 3, 1, 2)
-        rendered_img = resize_img(rendered_img, 512)   # Resizing back to 512x512 for computing losses
+        rendered_img = resize_img(rendered_img, 512, 512)   # Resizing back to 512x512 for computing losses
+        # cv2.imwrite("try.png", (np.array(rendered_img[0].detach().permute(1, 2, 0).cpu())[:,:,2::-1]+1)*127.5)
         return rendered_img[..., :3, :, :], rendered_img[..., 3:, :, :]
 
     def accumulate_gradients(self, phase, real_img, txtr_img, real_txtr, real_c, mask, gen_z, gen_c, ldmks, sync, gain):
         assert phase in ['Gmain', 'Greg', 'Gboth', 'Dmain', 'Dreg', 'Dboth']
         do_Gmain = (phase in ['Gmain', 'Gboth'])
-        do_imageq = False #(phase in ['Gmain', 'Gboth'])
+        do_imageq = True #(phase in ['Gmain', 'Gboth'])
         do_Dmain = (phase in ['Dmain', 'Dboth'])
         do_Gpl   = (phase in ['Greg', 'Gboth']) and (self.pl_weight != 0)
         do_Dr1   = (phase in ['Dreg', 'Dboth']) and (self.r1_gamma != 0)
@@ -202,14 +208,17 @@ class StyleGAN2Loss(Loss):
                 gen_txtr, _gen_ws = self.run_G(gen_z, gen_c, txtr_img, mask, sync=(sync and not do_Gpl)) # May get synced by Gpl.
                 gen_logits = self.run_D(gen_txtr, gen_c, sync=False)
                 loss_vgg_txtr = self.vgg_loss(txtr_img, gen_txtr)#*5
-                # gen_img_mirr = torch.fliplr(gen_txtr)
+                gen_txtr_mirr = torch.fliplr(gen_txtr)
                 # loss_sym = abs(torch.nn.functional.l1_loss(gen_txtr, gen_img_mirr))*sym_weight
                 # training_stats.report('Loss/scores/fake', gen_logits)
                 # training_stats.report('Loss/signs/fake', gen_logits.sign())
                 rend_img, rend_mask = self.gen_img(real_img, gen_txtr)
+                rend_sym, rend_sym_mask = self.gen_img(real_img, gen_txtr_mirr)
                 loss_vgg_real = self.vgg_loss(rend_img*rend_mask, real_img*rend_mask)
                 loss_vgg = (loss_vgg_real+loss_vgg_txtr)*0.05
                 loss_l1_rend = abs(torch.nn.functional.l1_loss(rend_img*rend_mask, real_img*rend_mask))*l1_weight
+                loss_l1_sym_rend = abs(torch.nn.functional.l1_loss(rend_sym*rend_sym_mask, real_img*rend_sym_mask))*l1_weight
+                loss_l1_rend = (loss_l1_rend+loss_l1_sym_rend)/2
                 training_stats.report('Loss/G/L1_loss', loss_l1_rend)
                 # training_stats.report('Loss/G/Perceptual', loss_vgg)
             with torch.autograd.profiler.record_function('Gmain_backward'):
