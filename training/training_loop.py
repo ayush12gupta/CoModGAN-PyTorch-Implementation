@@ -237,8 +237,11 @@ def training_loop(
         grid_images = (torch.from_numpy(images).to(torch.float32) / 127.5 - 1).to(device).split(batch_gpu)
         grid_txtr_images = (torch.from_numpy(txtr_images).to(torch.float32) / 127.5 - 1).to(device).split(batch_gpu)
         grid_mask_images = (torch.from_numpy(mask_images).to(torch.float32) / 255.).to(device).split(batch_gpu)
-        out_images = torch.cat([G_ema(z=z, c=c, image_in=txtr_image, mask_in=mask_image, noise_mode='const').cpu() for z, c, image, txtr_image, mask_image in zip(grid_z, grid_c, grid_images, grid_txtr_images, grid_mask_images)]).numpy()
-        save_image_grid(out_images, os.path.join(run_dir, 'fakes_init.png'), drange=[-1,1], grid_size=grid_size)
+        out_images = torch.cat([G_ema(z=z, c=c, image_in=txtr_image, mask_in=mask_image, noise_mode='const').cpu() for z, c, image, txtr_image, mask_image in zip(grid_z, grid_c, grid_images, grid_txtr_images, grid_mask_images)])
+        txt_images = out_images.to(device).split(batch_gpu)
+        rend_images = torch.cat([loss.gen_img(images, txt)[0] for images, txt in zip(grid_images, txt_images)]).numpy()
+        save_image_grid(out_images.numpy(), os.path.join(run_dir, 'fakes_init.png'), drange=[-1,1], grid_size=grid_size)
+        save_image_grid(rend_images.numpy(), os.path.join(run_dir, 'rend_init.png'), drange=[-1,1], grid_size=grid_size)
 
     # Initialize logs.
     if rank == 0:
